@@ -1,0 +1,7 @@
+{
+  "name" : "meshcoreqt",
+  "version-string" : "1.0.0",
+  "builtin-baseline" : "dcf6516bc3c7a763c68a2d0a1d850150223c693a",
+  "dependencies" : [
+  ]
+}
