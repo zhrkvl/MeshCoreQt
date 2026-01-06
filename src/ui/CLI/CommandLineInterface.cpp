@@ -543,16 +543,16 @@ void CommandLineInterface::cmdContacts(const QStringList &args) {
     m_output << "Contacts:\n";
     for (int i = 0; i < filtered.size(); ++i) {
       const Contact &contact = filtered[i];
-      QString pubKeyShort = contact.publicKeyHex().left(12) + "...";
       m_output << "  [" << (i + 1) << "] " << contact.name() << " ("
-               << contactTypeToString(contact.type()) << ") - " << pubKeyShort << "\n";
+               << contactTypeToString(contact.type()) << ")\n";
+      m_output << "      " << contact.publicKeyHex() << "\n";
     }
     m_output << "\n";
     m_output << "Total: " << filtered.size() << " contact(s)\n";
   } else {
     // Full view
     m_output << "Available contacts:\n";
-    m_output << "──────────────────────────────────────────────────\n";
+    m_output << "──────────────────────────────────────────────────────────────────────\n";
 
     for (int i = 0; i < filtered.size(); ++i) {
       const Contact &contact = filtered[i];
@@ -560,8 +560,7 @@ void CommandLineInterface::cmdContacts(const QStringList &args) {
       m_output << "[" << (i + 1) << "] " << contact.name() << " ("
                << contactTypeToString(contact.type()) << ")\n";
 
-      QString pubKeyShort = contact.publicKeyHex().left(12) + "...";
-      m_output << "    PubKey: " << pubKeyShort << " (32 bytes)\n";
+      m_output << "    PubKey: " << contact.publicKeyHex() << "\n";
 
       m_output << "    Path:   " << formatPathLength(contact.pathLength()) << "\n";
 
@@ -575,11 +574,11 @@ void CommandLineInterface::cmdContacts(const QStringList &args) {
       m_output << "\n";
     }
 
-    m_output << "──────────────────────────────────────────────────\n";
+    m_output << "──────────────────────────────────────────────────────────────────────\n";
     m_output << "Total: " << filtered.size() << " contact(s)\n";
     m_output << "\n";
-    m_output << "For details: contacts <pubkey_prefix>\n";
-    m_output << "To message:  msg <pubkey_prefix> <message>\n";
+    m_output << "For details: contacts <pubkey>\n";
+    m_output << "To message:  msg <pubkey> <message>\n";
   }
 
   m_output.flush();
@@ -919,7 +918,7 @@ void CommandLineInterface::printContactDetails(const Contact &contact) {
 
   m_output << "╚════════════════════════════════════════════════════════════════\n";
   m_output << "\n";
-  m_output << "To send message: msg " << contact.publicKeyHex().left(12) << " <your message>\n";
+  m_output << "To send message: msg " << contact.publicKeyHex() << " <your message>\n";
   m_output.flush();
 }
 
