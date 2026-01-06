@@ -119,6 +119,9 @@ private:
   // Channel discovery
   void requestNextChannel();
 
+  // BLE discovery internal (after permission granted)
+  void startBLEScanInternal(bool filterMeshCoreOnly);
+
   IConnection *m_connection;
   bool m_ownsConnection;
   ChannelManager *m_channelManager;
