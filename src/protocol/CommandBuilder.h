@@ -14,6 +14,12 @@ public:
   static QByteArray buildAppStart(uint8_t appVer, const QString &appName);
   static QByteArray buildGetContacts(uint32_t since = 0);
 
+  // Messaging operations
+  static QByteArray buildSendTxtMsg(uint8_t txtType, uint8_t attempt,
+                                    uint32_t timestamp,
+                                    const QByteArray &recipientPubKeyPrefix,
+                                    const QString &text);
+
   // Channel operations
   static QByteArray buildGetChannel(uint8_t channelIdx);
   static QByteArray buildSetChannel(uint8_t channelIdx, const QString &name,

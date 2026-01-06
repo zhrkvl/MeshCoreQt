@@ -62,6 +62,7 @@ void CommandLineInterface::printHelp() {
   m_output
       << "  join <name> <psk>        - Join channel with name and PSK (hex)\n";
   m_output << "  send <channel> <message> - Send message to channel\n";
+  m_output << "  msg <pubkey> <message>   - Send direct message to contact (pubkey is hex)\n";
   m_output << "  sync                     - Pull next message from queue\n";
   m_output << "  status                   - Show connection status\n";
   m_output << "  help                     - Show this help\n";
@@ -125,6 +126,8 @@ void CommandLineInterface::handleCommand(const QString &line) {
     cmdJoin(args);
   } else if (cmd == "send") {
     cmdSend(args);
+  } else if (cmd == "msg" || cmd == "message") {
+    cmdMsg(args);
   } else if (cmd == "sync") {
     cmdSync();
   } else if (cmd == "status") {
@@ -258,6 +261,37 @@ void CommandLineInterface::cmdSend(const QStringList &args) {
   m_output.flush();
 
   m_client->sendChannelMessage(channelIdx, message);
+}
+
+void CommandLineInterface::cmdMsg(const QStringList &args) {
+  if (args.size() < 2) {
+    m_output << "Usage: msg <pubkey_hex> <message>\n";
+    m_output << "Example: msg abc123def456 Hello from MeshCoreQt!\n";
+    m_output << "Note: pubkey_hex is the first 6+ bytes of recipient's public key in hex\n";
+    m_output.flush();
+    return;
+  }
+
+  if (!m_client->isInitialized()) {
+    m_output << "Error: Not initialized. Use 'init' first.\n";
+    m_output.flush();
+    return;
+  }
+
+  QString pubKeyHex = args[0];
+  QByteArray pubKey = QByteArray::fromHex(pubKeyHex.toUtf8());
+
+  if (pubKey.size() < 6) {
+    m_output << "Error: Public key too short (need at least 6 bytes / 12 hex chars)\n";
+    m_output.flush();
+    return;
+  }
+
+  QString message = args.mid(1).join(' ');
+  m_output << "Sending direct message to " << pubKey.left(6).toHex() << ": " << message << "\n";
+  m_output.flush();
+
+  m_client->sendDirectMessage(pubKey, message);
 }
 
 void CommandLineInterface::cmdSync() {

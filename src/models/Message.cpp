@@ -4,7 +4,7 @@ namespace MeshCore {
 
 Message::Message()
     : type(CHANNEL_MESSAGE), channelIdx(0), timestamp(0), pathLen(0xFF),
-      snr(0.0f) {}
+      pathLength(0xFF), txtType(0), snr(0.0f) {}
 
 Message Message::fromChannelRecv(uint8_t channelIdx, const QString &fullText,
                                  uint32_t timestamp, uint8_t pathLen,

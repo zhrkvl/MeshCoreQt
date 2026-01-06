@@ -14,13 +14,16 @@ public:
   };
 
   Type type;
-  uint8_t channelIdx; // For channel messages
-  QString senderName; // Parsed from text (format: "SenderName: msg")
-  QString text; // Message text (without "SenderName: " prefix for channel msgs)
-  uint32_t timestamp;   // Unix epoch seconds
-  uint8_t pathLen;      // 0xFF = direct, else hop count
-  float snr;            // Signal-to-noise ratio (dB)
-  QDateTime receivedAt; // Local receive time
+  uint8_t channelIdx;          // For channel messages
+  QByteArray senderPubKeyPrefix; // For contact messages (6-byte prefix)
+  QString senderName;          // Parsed from text (format: "SenderName: msg")
+  QString text;                // Message text
+  uint32_t timestamp;          // Unix epoch seconds
+  uint8_t pathLen;             // 0xFF = direct, else hop count
+  uint8_t pathLength;          // Alias for pathLen (more readable)
+  uint8_t txtType;             // TXT_TYPE_PLAIN, TXT_TYPE_CLI_DATA, etc.
+  float snr;                   // Signal-to-noise ratio (dB)
+  QDateTime receivedAt;        // Local receive time
 
   Message();
 

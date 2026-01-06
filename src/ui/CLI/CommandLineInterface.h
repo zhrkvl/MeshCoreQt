@@ -42,6 +42,7 @@ private:
   void cmdDiscover();
   void cmdJoin(const QStringList &args);
   void cmdSend(const QStringList &args);
+  void cmdMsg(const QStringList &args);
   void cmdSync();
   void cmdConfigure(const QStringList &args);
   void cmdStatus();

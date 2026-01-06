@@ -49,6 +49,28 @@ QByteArray CommandBuilder::buildGetContacts(uint32_t since) {
   return frame;
 }
 
+// Messaging operations
+QByteArray CommandBuilder::buildSendTxtMsg(uint8_t txtType, uint8_t attempt,
+                                           uint32_t timestamp,
+                                           const QByteArray &recipientPubKeyPrefix,
+                                           const QString &text) {
+  QByteArray frame;
+  writeUint8(frame, static_cast<uint8_t>(CommandCode::SEND_TXT_MSG));
+  writeUint8(frame, txtType);
+  writeUint8(frame, attempt);
+  writeUint32LE(frame, timestamp);
+
+  // Append first 6 bytes of recipient's public key
+  frame.append(recipientPubKeyPrefix.left(6));
+
+  // Append text as null-terminated string
+  QByteArray textBytes = text.toUtf8();
+  frame.append(textBytes);
+  frame.append('\0');
+
+  return frame;
+}
+
 // Channel operations
 QByteArray CommandBuilder::buildGetChannel(uint8_t channelIdx) {
   QByteArray frame;

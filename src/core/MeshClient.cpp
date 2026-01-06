@@ -362,6 +362,33 @@ void MeshClient::sendChannelMessage(uint8_t channelIdx, const QString &text) {
   m_connection->sendFrame(cmd);
 }
 
+void MeshClient::sendDirectMessage(const QByteArray &recipientPubKey,
+                                    const QString &text) {
+  if (!m_initialized) {
+    emit errorOccurred("Cannot send message: not initialized");
+    return;
+  }
+
+  if (recipientPubKey.size() < 6) {
+    emit errorOccurred("Invalid recipient public key (too short)");
+    return;
+  }
+
+  uint32_t timestamp = QDateTime::currentSecsSinceEpoch();
+  uint8_t attempt = 0; // First attempt
+  QByteArray cmd = CommandBuilder::buildSendTxtMsg(
+      TXT_TYPE_PLAIN, attempt, timestamp, recipientPubKey, text);
+
+  qDebug() << "Sending direct message to"
+           << recipientPubKey.left(6).toHex() << ":" << text;
+  m_connection->sendFrame(cmd);
+}
+
+void MeshClient::sendDirectMessage(const Contact &recipient,
+                                    const QString &text) {
+  sendDirectMessage(recipient.publicKey(), text);
+}
+
 void MeshClient::syncNextMessage() {
   if (!m_initialized) {
     emit errorOccurred("Cannot sync messages: not initialized");

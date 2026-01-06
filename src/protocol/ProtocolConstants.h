@@ -20,6 +20,11 @@ constexpr int MAX_NAME_SIZE = 32;
 // Public channel PSK (base64)
 constexpr const char *PUBLIC_GROUP_PSK = "izOH6cXN6mrJ5e26oRXNcg==";
 
+// Text message types
+constexpr uint8_t TXT_TYPE_PLAIN = 0;        // Plain text message
+constexpr uint8_t TXT_TYPE_CLI_DATA = 1;     // CLI command
+constexpr uint8_t TXT_TYPE_SIGNED_PLAIN = 2; // Plain text, signed by sender
+
 // Command codes (app -> radio)
 enum class CommandCode : uint8_t {
   APP_START = 1,

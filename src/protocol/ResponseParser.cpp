@@ -181,21 +181,40 @@ Message ResponseParser::parseChannelMsgRecvV3(const QByteArray &frame) {
                                   snr);
 }
 
-// Parse RESP_CODE_CONTACT_MSG_RECV_V3 (for future direct messages)
+// Parse RESP_CODE_CONTACT_MSG_RECV_V3
 Message ResponseParser::parseContactMsgRecvV3(const QByteArray &frame) {
-  // Similar structure to channel messages but with contact-specific fields
-  // Not fully implemented yet - placeholder
   Message msg;
   msg.type = Message::CONTACT_MESSAGE;
 
-  if (frame.size() < 12) {
+  if (frame.size() < 16) {
     qWarning() << "ContactMsgRecvV3 frame too short:" << frame.size();
     return msg;
   }
 
-  // Basic parsing - to be expanded when implementing direct messages
-  msg.timestamp = readUint32LE(frame, 7);
-  msg.text = readString(frame, 11);
+  // Frame format (from MyMesh.cpp queueMessage):
+  // Byte 0: RESP_CODE_CONTACT_MSG_RECV_V3 (16)
+  // Byte 1: SNR * 4 (int8_t)
+  // Byte 2-3: reserved
+  // Bytes 4-9: sender public key prefix (6 bytes)
+  // Byte 10: path_len (0xFF if direct/no route info)
+  // Byte 11: txt_type
+  // Bytes 12-15: sender_timestamp (4 bytes LE)
+  // Bytes 16+: text (null-terminated string)
+
+  int8_t snrScaled = static_cast<int8_t>(frame[1]);
+  msg.snr = snrScaled / 4.0f;
+
+  // Extract sender public key prefix
+  msg.senderPubKeyPrefix = frame.mid(4, 6);
+
+  int8_t pathLen = static_cast<int8_t>(frame[10]);
+  msg.pathLength = (pathLen == -1) ? 0 : pathLen; // 0xFF means direct/no route
+
+  msg.txtType = static_cast<uint8_t>(frame[11]);
+  msg.timestamp = readUint32LE(frame, 12);
+
+  // Text starts at byte 16 (no extra data for now)
+  msg.text = readString(frame, 16);
 
   return msg;
 }

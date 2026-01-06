@@ -47,6 +47,8 @@ public:
 
   // Messaging
   void sendChannelMessage(uint8_t channelIdx, const QString &text);
+  void sendDirectMessage(const QByteArray &recipientPubKey, const QString &text);
+  void sendDirectMessage(const Contact &recipient, const QString &text);
   void syncNextMessage();
 
   // Radio configuration
