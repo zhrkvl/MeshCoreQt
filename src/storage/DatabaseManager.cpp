@@ -79,6 +79,14 @@ void DatabaseManager::closeDatabase() {
   QMutexLocker locker(&m_mutex);
 
   if (m_db.isOpen()) {
+    // Checkpoint WAL to ensure all data is written to main DB file
+    QSqlQuery query(m_db);
+    if (!query.exec("PRAGMA wal_checkpoint(FULL)")) {
+      qWarning() << "Failed to checkpoint WAL:" << query.lastError().text();
+    } else {
+      qDebug() << "WAL checkpoint completed";
+    }
+
     QString connectionName = m_db.connectionName();
     m_db.close();
     QSqlDatabase::removeDatabase(connectionName);
