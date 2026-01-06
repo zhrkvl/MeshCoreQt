@@ -7,8 +7,10 @@
 #include <QString>
 #include <QVector>
 
+#include "../connection/BLEConnection.h"
 #include "../connection/ConnectionState.h"
 #include "../connection/IConnection.h"
+#include "../connection/SerialConnection.h"
 #include "../models/Channel.h"
 #include "../models/Contact.h"
 #include "../models/Message.h"
@@ -55,6 +57,12 @@ public:
   void setRadioConfig(const RadioConfig &config);
   void setRadioPreset(const QString &presetName);
 
+  // Device discovery
+  void scanBLEDevices(bool filterMeshCoreOnly = true);
+  void scanSerialPorts();
+  QList<BLEDeviceInfo> getDiscoveredBLEDevices() const;
+  QList<SerialPortInfo> getAvailableSerialPorts() const;
+
   // State
   bool isInitialized() const { return m_initialized; }
   DeviceInfo getDeviceInfo() const { return m_deviceInfo; }
@@ -65,6 +73,10 @@ signals:
   void disconnected();
   void initializationComplete();
   void errorOccurred(const QString &error);
+
+  // Discovery signals
+  void bleDeviceFound(const BLEDeviceInfo &device);
+  void bleDiscoveryFinished();
 
   // Channel signals
   void channelListUpdated();
@@ -122,6 +134,10 @@ private:
 
   // Contact storage
   QVector<Contact> m_contacts;
+
+  // Device discovery results
+  QList<SerialPortInfo> m_serialPorts;
+  QList<BLEDeviceInfo> m_bleDevices;
 };
 
 } // namespace MeshCore

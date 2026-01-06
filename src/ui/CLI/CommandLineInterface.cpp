@@ -1,4 +1,5 @@
 #include "CommandLineInterface.h"
+#include <QBluetoothLocalDevice>
 #include <QCoreApplication>
 #include <QDebug>
 #include <iostream>
@@ -27,6 +28,10 @@ CommandLineInterface::CommandLineInterface(MeshClient *client, QObject *parent)
           &CommandLineInterface::onNewMessageWaiting);
   connect(m_client, &MeshClient::noMoreMessages, this,
           &CommandLineInterface::onNoMoreMessages);
+  connect(m_client, &MeshClient::bleDeviceFound, this,
+          &CommandLineInterface::onBLEDeviceFound);
+  connect(m_client, &MeshClient::bleDiscoveryFinished, this,
+          &CommandLineInterface::onBLEDiscoveryFinished);
 
   // Connect input notifier
   connect(m_notifier, &QSocketNotifier::activated, this,
@@ -51,6 +56,12 @@ void CommandLineInterface::printWelcome() {
 
 void CommandLineInterface::printHelp() {
   m_output << "Commands:\n";
+  m_output << "  scan [type]              - Scan for devices\n";
+  m_output << "                             Types: all (default), serial, ble\n";
+  m_output << "                             Examples:\n";
+  m_output << "                               scan          (scan everything)\n";
+  m_output << "                               scan serial   (USB ports only)\n";
+  m_output << "                               scan ble      (Bluetooth only)\n";
   m_output << "  connect <target>         - Connect to device\n";
   m_output << "                             Serial: /dev/ttyUSB0, COM3\n";
   m_output << "                             BLE: ble:DeviceName or ble:MAC\n";
@@ -111,7 +122,9 @@ void CommandLineInterface::handleCommand(const QString &line) {
   QString cmd = parts[0].toLower();
   QStringList args = parts.mid(1);
 
-  if (cmd == "connect") {
+  if (cmd == "scan") {
+    cmdScan(args);
+  } else if (cmd == "connect") {
     cmdConnect(args);
   } else if (cmd == "disconnect") {
     cmdDisconnect();
@@ -443,5 +456,165 @@ void CommandLineInterface::onNoMoreMessages() {
 }
 
 void CommandLineInterface::printChannels() { cmdChannels(); }
+
+void CommandLineInterface::cmdScan(const QStringList &args) {
+  QString type = "all"; // default to scanning everything
+
+  if (!args.isEmpty()) {
+    type = args[0].toLower();
+
+    if (type != "all" && type != "serial" && type != "ble") {
+      m_output << "Invalid scan type. Use: scan [all|serial|ble]\n";
+      m_output.flush();
+      return;
+    }
+  }
+
+  // Scan serial ports
+  if (type == "serial" || type == "all") {
+    m_output << "\n";
+    m_output << "╔════════════════════════════════════════╗\n";
+    m_output << "║          Serial Ports                  ║\n";
+    m_output << "╚════════════════════════════════════════╝\n";
+    m_output << "\n";
+    m_output.flush();
+
+    m_client->scanSerialPorts();
+    QList<SerialPortInfo> ports = m_client->getAvailableSerialPorts();
+
+    if (ports.isEmpty()) {
+      m_output << "No serial ports found.\n";
+      m_output << "\n";
+      m_output << "Troubleshooting:\n";
+      m_output << "  • Make sure your device is connected via USB\n";
+      m_output << "  • Check that USB-Serial drivers are installed\n";
+      m_output
+          << "  • Linux: Add user to 'dialout' group (sudo usermod -a -G "
+             "dialout $USER)\n";
+      m_output
+          << "  • macOS: Check System Information > USB for device\n";
+      m_output << "  • Windows: Check Device Manager for COM ports\n";
+      m_output << "\n";
+    } else {
+      m_output << "Found " << ports.size() << " port(s):\n\n";
+
+      for (const SerialPortInfo &port : ports) {
+        m_output << "─────────────────────────────────────────\n";
+        m_output << "Port:         " << port.portName << "\n";
+
+        if (!port.description.isEmpty()) {
+          m_output << "Description:  " << port.description << "\n";
+        }
+
+        if (!port.manufacturer.isEmpty()) {
+          m_output << "Manufacturer: " << port.manufacturer << "\n";
+        }
+
+        if (!port.serialNumber.isEmpty()) {
+          m_output << "Serial #:     " << port.serialNumber << "\n";
+        }
+
+        QString usbId = port.usbIdString();
+        if (!usbId.isEmpty()) {
+          m_output << "USB VID:PID:  " << usbId << "\n";
+        }
+
+        // Highlight likely MeshCore devices
+        bool isMeshCore = SerialConnection::isMeshCoreDevice(port);
+        if (isMeshCore) {
+          m_output << "\n*** Likely MeshCore-compatible device ***\n";
+        }
+
+        m_output << "\nTo connect:   connect " << port.portName << "\n";
+      }
+
+      m_output << "─────────────────────────────────────────\n\n";
+    }
+
+    m_output.flush();
+  }
+
+  // Scan BLE devices
+  if (type == "ble" || type == "all") {
+    m_output << "\n";
+    m_output << "╔════════════════════════════════════════╗\n";
+    m_output << "║     Bluetooth Low Energy Devices       ║\n";
+    m_output << "╚════════════════════════════════════════╝\n";
+    m_output << "\n";
+
+    // Check if Bluetooth is available
+    if (QBluetoothLocalDevice::allDevices().isEmpty()) {
+      m_output << "Error: Bluetooth not available on this system.\n";
+      m_output << "\n";
+      m_output << "Possible reasons:\n";
+      m_output << "  • Bluetooth hardware not present\n";
+      m_output << "  • Bluetooth turned off in system settings\n";
+      m_output << "  • Missing Bluetooth permissions\n";
+      m_output << "\n";
+      m_output.flush();
+    } else {
+      m_output << "Scanning for BLE devices (5 seconds)...\n";
+      m_output << "\n";
+      m_output.flush();
+
+      // Filter MeshCore devices if scanning "all" (to reduce noise)
+      // Show all devices if specifically scanning "ble"
+      bool filterMeshCore = (type == "all");
+      m_client->scanBLEDevices(filterMeshCore);
+
+      // Results will come via signals (onBLEDeviceFound,
+      // onBLEDiscoveryFinished)
+    }
+  }
+}
+
+void CommandLineInterface::onBLEDeviceFound(const BLEDeviceInfo &device) {
+  m_output << "─────────────────────────────────────────\n";
+
+  QString displayName = device.displayName();
+  m_output << "Device:  " << displayName << "\n";
+
+  if (!device.name.isEmpty()) {
+    m_output << "Address: " << device.address << "\n";
+  }
+
+  m_output << "RSSI:    " << device.rssiString() << "\n";
+
+  if (device.hasMeshCoreService) {
+    m_output << "\n*** MeshCore UART Service detected ***\n";
+  } else {
+    m_output << "\nNote: Service UUID not advertised (may still be "
+                "compatible)\n";
+  }
+
+  QString connectTarget =
+      device.name.isEmpty() ? device.address : device.name;
+  m_output << "\nTo connect: connect ble:" << connectTarget << "\n";
+
+  m_output.flush();
+}
+
+void CommandLineInterface::onBLEDiscoveryFinished() {
+  QList<BLEDeviceInfo> devices = m_client->getDiscoveredBLEDevices();
+
+  m_output << "─────────────────────────────────────────\n";
+  m_output << "\n";
+  m_output << "BLE scan complete. Found " << devices.size()
+           << " device(s).\n";
+
+  if (devices.isEmpty()) {
+    m_output << "\n";
+    m_output << "Troubleshooting:\n";
+    m_output << "  • Make sure your MeshCore device is powered on\n";
+    m_output << "  • Check device is in pairing/advertising mode\n";
+    m_output << "  • Move closer to the device\n";
+    m_output
+        << "  • Try 'scan ble' to see all BLE devices (not just MeshCore)\n";
+    m_output << "\n";
+  }
+
+  m_output.flush();
+  printPrompt();
+}
 
 } // namespace MeshCore

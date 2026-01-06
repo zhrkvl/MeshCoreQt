@@ -13,7 +13,8 @@ const QBluetoothUuid BLEConnection::TX_CHARACTERISTIC_UUID =
 
 BLEConnection::BLEConnection(QObject *parent)
     : IConnection(parent), m_discoveryAgent(nullptr), m_controller(nullptr),
-      m_service(nullptr), m_state(ConnectionState::Disconnected) {
+      m_service(nullptr), m_state(ConnectionState::Disconnected),
+      m_filterMeshCoreOnly(false) {
 
   m_discoveryAgent = new QBluetoothDeviceDiscoveryAgent(this);
   m_discoveryAgent->setLowEnergyDiscoveryTimeout(5000);
@@ -97,10 +98,15 @@ bool BLEConnection::sendFrame(const QByteArray &data) {
   return true;
 }
 
-void BLEConnection::startDiscovery() {
+void BLEConnection::startDiscovery(bool filterMeshCoreOnly) {
+  m_filterMeshCoreOnly = filterMeshCoreOnly;
   m_discoveredDevices.clear();
+  m_discoveredBLEDevices.clear();
   m_discoveryAgent->start(QBluetoothDeviceDiscoveryAgent::LowEnergyMethod);
-  qDebug() << "BLE discovery started";
+
+  qDebug() << "BLE discovery started"
+           << (filterMeshCoreOnly ? "(filtering MeshCore devices only)"
+                                  : "(all devices)");
 }
 
 void BLEConnection::stopDiscovery() {
@@ -110,39 +116,65 @@ void BLEConnection::stopDiscovery() {
 }
 
 void BLEConnection::onDeviceDiscovered(const QBluetoothDeviceInfo &device) {
-  if (device.coreConfigurations() &
-      QBluetoothDeviceInfo::LowEnergyCoreConfiguration) {
-    qDebug() << "BLE device discovered:" << device.name() << device.address();
-    m_discoveredDevices.append(device);
-    emit deviceDiscovered(device);
+  // Check if it's a BLE device
+  if (!(device.coreConfigurations() &
+        QBluetoothDeviceInfo::LowEnergyCoreConfiguration)) {
+    return;
+  }
 
-    // If this matches our target device, connect to it
-    if (device.name() == m_targetDeviceName ||
-        device.address().toString() == m_targetDeviceName) {
-      qDebug() << "Found target device:" << device.name();
-      m_targetDevice = device;
-      stopDiscovery();
+  // Create enhanced device info
+  BLEDeviceInfo info;
+  info.name = device.name();
+  info.address = device.address().toString();
+  info.rssi = device.rssi();
+  info.deviceInfo = device;
+  info.hasMeshCoreService = hasMeshCoreService(device);
 
-      // Create controller and connect
-      if (m_controller) {
-        delete m_controller;
-      }
+  // Apply filtering if requested
+  if (m_filterMeshCoreOnly && !info.hasMeshCoreService) {
+    qDebug() << "Skipping non-MeshCore device:" << info.displayName();
+    return;
+  }
 
-      m_controller = QLowEnergyController::createCentral(device, this);
+  qDebug() << "BLE device discovered:" << info.displayName() << info.address
+           << info.rssiString()
+           << (info.hasMeshCoreService ? "[MeshCore]" : "");
 
-      connect(m_controller, &QLowEnergyController::connected, this,
-              &BLEConnection::onControllerConnected);
-      connect(m_controller, &QLowEnergyController::disconnected, this,
-              &BLEConnection::onControllerDisconnected);
-      connect(m_controller, &QLowEnergyController::errorOccurred, this,
-              &BLEConnection::onControllerError);
-      connect(m_controller, &QLowEnergyController::serviceDiscovered, this,
-              &BLEConnection::onServiceDiscovered);
-      connect(m_controller, &QLowEnergyController::discoveryFinished, this,
-              &BLEConnection::onServiceDiscoveryFinished);
+  // Store in both lists
+  m_discoveredDevices.append(device);
+  m_discoveredBLEDevices.append(info);
 
-      m_controller->connectToDevice();
+  // Emit both signals for backward compatibility
+  emit deviceDiscovered(device);
+  emit bleDeviceDiscovered(info);
+
+  // Auto-connect logic if this is target device (existing code)
+  if (!m_targetDeviceName.isEmpty() &&
+      (device.name() == m_targetDeviceName ||
+       device.address().toString() == m_targetDeviceName)) {
+    qDebug() << "Found target device:" << device.name();
+    m_targetDevice = device;
+    stopDiscovery();
+
+    // Create controller and connect
+    if (m_controller) {
+      delete m_controller;
     }
+
+    m_controller = QLowEnergyController::createCentral(device, this);
+
+    connect(m_controller, &QLowEnergyController::connected, this,
+            &BLEConnection::onControllerConnected);
+    connect(m_controller, &QLowEnergyController::disconnected, this,
+            &BLEConnection::onControllerDisconnected);
+    connect(m_controller, &QLowEnergyController::errorOccurred, this,
+            &BLEConnection::onControllerError);
+    connect(m_controller, &QLowEnergyController::serviceDiscovered, this,
+            &BLEConnection::onServiceDiscovered);
+    connect(m_controller, &QLowEnergyController::discoveryFinished, this,
+            &BLEConnection::onServiceDiscoveryFinished);
+
+    m_controller->connectToDevice();
   }
 }
 
@@ -315,6 +347,22 @@ void BLEConnection::setState(ConnectionState newState) {
     m_state = newState;
     emit stateChanged(newState);
   }
+}
+
+bool BLEConnection::hasMeshCoreService(const QBluetoothDeviceInfo &device) {
+  // Check if device advertises Nordic UART Service
+  QList<QBluetoothUuid> serviceUuids = device.serviceUuids();
+
+  for (const QBluetoothUuid &uuid : serviceUuids) {
+    if (uuid == SERVICE_UUID) {
+      return true;
+    }
+  }
+
+  // Note: Many BLE devices don't advertise all service UUIDs during discovery
+  // They're only visible after connecting. This is best-effort filtering.
+  // User can still connect to any device to check for the service.
+  return false;
 }
 
 } // namespace MeshCore

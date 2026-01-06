@@ -165,4 +165,68 @@ void SerialConnection::setState(ConnectionState newState) {
     emit stateChanged(newState);
   }
 }
+
+QList<SerialPortInfo> SerialConnection::enumeratePorts() {
+  QList<SerialPortInfo> result;
+
+  // Use Qt's cross-platform serial port enumeration
+  const QList<QSerialPortInfo> ports = QSerialPortInfo::availablePorts();
+
+  for (const QSerialPortInfo &port : ports) {
+    SerialPortInfo info;
+    info.portName = port.portName();
+    info.description = port.description();
+    info.manufacturer = port.manufacturer();
+    info.serialNumber = port.serialNumber();
+    info.vendorId = port.hasVendorIdentifier() ? port.vendorIdentifier() : 0;
+    info.productId =
+        port.hasProductIdentifier() ? port.productIdentifier() : 0;
+    info.isValid = true;
+
+    result.append(info);
+  }
+
+  qDebug() << "Enumerated" << result.size() << "serial port(s)";
+  return result;
+}
+
+bool SerialConnection::isMeshCoreDevice(const SerialPortInfo &info) {
+  // Common USB-Serial chip vendors used in MeshCore and similar devices:
+  // - FTDI (FT232, etc.): 0x0403
+  // - Silicon Labs (CP210x): 0x10C4
+  // - WCH (CH340, CH341): 0x1A86
+  // - Prolific (PL2303): 0x067B
+
+  static const QList<uint16_t> knownVendors = {
+      0x0403, // FTDI
+      0x10C4, // Silicon Labs
+      0x1A86, // WCH
+      0x067B  // Prolific
+  };
+
+  // Check USB Vendor ID
+  if (info.vendorId != 0 && knownVendors.contains(info.vendorId)) {
+    return true;
+  }
+
+  // Fallback: Check description and manufacturer strings
+  QString desc = info.description.toLower();
+  QString mfg = info.manufacturer.toLower();
+
+  // Look for USB serial keywords
+  if (desc.contains("usb") &&
+      (desc.contains("serial") || desc.contains("uart"))) {
+    return true;
+  }
+
+  // Check manufacturer names
+  QStringList knownMfgs = {"ftdi", "silicon labs", "ch340", "prolific"};
+  for (const QString &known : knownMfgs) {
+    if (mfg.contains(known)) {
+      return true;
+    }
+  }
+
+  return false;
+}
 } // namespace MeshCore

@@ -625,4 +625,53 @@ void MeshClient::onSerialError(const QString &error) {
   emit errorOccurred(error);
 }
 
+void MeshClient::scanBLEDevices(bool filterMeshCoreOnly) {
+  qDebug() << "Starting BLE device scan (filter:" << filterMeshCoreOnly << ")";
+
+  // Create temporary BLE connection just for discovery
+  // Don't use m_connection as we might already be connected
+  BLEConnection *bleConn = new BLEConnection(this);
+
+  // Forward device discoveries
+  connect(bleConn, &BLEConnection::bleDeviceDiscovered, this,
+          [this](const BLEDeviceInfo &device) {
+            m_bleDevices.append(device);
+            emit bleDeviceFound(device);
+          });
+
+  // Clean up and signal completion
+  connect(bleConn, &BLEConnection::discoveryFinished, this,
+          [this, bleConn]() {
+            qDebug() << "BLE discovery finished. Found" << m_bleDevices.size()
+                     << "device(s)";
+            emit bleDiscoveryFinished();
+            bleConn->deleteLater(); // Qt will delete after event loop
+          });
+
+  // Handle discovery errors
+  connect(bleConn, &BLEConnection::errorOccurred, this,
+          [this, bleConn](const QString &error) {
+            qWarning() << "BLE discovery error:" << error;
+            emit errorOccurred(error);
+            bleConn->deleteLater();
+          });
+
+  m_bleDevices.clear();
+  bleConn->startDiscovery(filterMeshCoreOnly);
+}
+
+void MeshClient::scanSerialPorts() {
+  qDebug() << "Scanning serial ports...";
+  m_serialPorts = SerialConnection::enumeratePorts();
+  qDebug() << "Found" << m_serialPorts.size() << "serial port(s)";
+}
+
+QList<BLEDeviceInfo> MeshClient::getDiscoveredBLEDevices() const {
+  return m_bleDevices;
+}
+
+QList<SerialPortInfo> MeshClient::getAvailableSerialPorts() const {
+  return m_serialPorts;
+}
+
 } // namespace MeshCore

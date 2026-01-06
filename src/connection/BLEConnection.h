@@ -14,6 +14,36 @@
 
 namespace MeshCore {
 
+// Enhanced BLE device information
+struct BLEDeviceInfo {
+  QString name;             // Device name (may be empty)
+  QString address;          // MAC address
+  int16_t rssi;             // Signal strength in dBm
+  bool hasMeshCoreService;  // Has Nordic UART Service UUID
+  QBluetoothDeviceInfo deviceInfo; // Full Qt device info for connection
+
+  BLEDeviceInfo() : rssi(-999), hasMeshCoreService(false) {}
+
+  // Human-readable RSSI with signal quality
+  QString rssiString() const {
+    if (rssi == -999)
+      return "N/A";
+    QString str = QString::number(rssi) + " dBm";
+    if (rssi >= -50)
+      str += " (Excellent)";
+    else if (rssi >= -70)
+      str += " (Good)";
+    else if (rssi >= -85)
+      str += " (Fair)";
+    else
+      str += " (Weak)";
+    return str;
+  }
+
+  // Display name (address if name is empty)
+  QString displayName() const { return name.isEmpty() ? address : name; }
+};
+
 class BLEConnection : public IConnection {
   Q_OBJECT
 
@@ -30,14 +60,18 @@ public:
   QString connectionType() const override { return QStringLiteral("BLE"); }
 
   // BLE-specific methods
-  void startDiscovery();
+  void startDiscovery(bool filterMeshCoreOnly = false);
   void stopDiscovery();
   QList<QBluetoothDeviceInfo> getDiscoveredDevices() const {
     return m_discoveredDevices;
   }
+  QList<BLEDeviceInfo> getDiscoveredBLEDevices() const {
+    return m_discoveredBLEDevices;
+  }
 
 signals:
   void deviceDiscovered(const QBluetoothDeviceInfo &device);
+  void bleDeviceDiscovered(const BLEDeviceInfo &device);
   void discoveryFinished();
 
 private slots:
@@ -61,6 +95,7 @@ private slots:
 private:
   void setState(ConnectionState newState);
   void connectToService();
+  bool hasMeshCoreService(const QBluetoothDeviceInfo &device);
 
   // Nordic UART Service (NUS) UUIDs - standard for MeshCore BLE
   static const QBluetoothUuid SERVICE_UUID;
@@ -69,6 +104,8 @@ private:
 
   QBluetoothDeviceDiscoveryAgent *m_discoveryAgent;
   QList<QBluetoothDeviceInfo> m_discoveredDevices;
+  QList<BLEDeviceInfo> m_discoveredBLEDevices;
+  bool m_filterMeshCoreOnly;
 
   QLowEnergyController *m_controller;
   QLowEnergyService *m_service;

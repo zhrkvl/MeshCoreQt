@@ -27,6 +27,8 @@ private slots:
   void onChannelDiscovered(const Channel &channel);
   void onNewMessageWaiting();
   void onNoMoreMessages();
+  void onBLEDeviceFound(const BLEDeviceInfo &device);
+  void onBLEDiscoveryFinished();
 
 private:
   void printHelp();
@@ -35,6 +37,7 @@ private:
   void handleCommand(const QString &line);
 
   // Command handlers
+  void cmdScan(const QStringList &args);
   void cmdConnect(const QStringList &args);
   void cmdDisconnect();
   void cmdInit();
