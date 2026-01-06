@@ -47,6 +47,11 @@ public:
   void removeContact(const QByteArray &publicKey);
   void requestContactByKey(const QByteArray &publicKey);
 
+  // Advertising operations
+  void sendSelfAdvert(bool floodMode = false);
+  void setAdvertName(const QString &name);
+  void setAdvertLocation(double latitude, double longitude);
+
   // Messaging
   void sendChannelMessage(uint8_t channelIdx, const QString &text);
   void sendDirectMessage(const QByteArray &recipientPubKey, const QString &text);
@@ -86,6 +91,10 @@ signals:
   void contactReceived(const Contact &contact);
   void contactRemoved(const QByteArray &publicKey);
   void contactsUpdated();
+
+  // Advertisement signals
+  void advertReceived(const QByteArray &publicKey);
+  void newContactAdvertReceived(const Contact &contact);
 
   // Message signals
   void channelMessageReceived(const Message &message);

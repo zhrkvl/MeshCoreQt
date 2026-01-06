@@ -52,6 +52,9 @@ private:
   void cmdHelp();
   void cmdQuit();
   void cmdContacts(const QStringList &args);
+  void cmdAdvert(const QStringList &args);
+  void cmdSetName(const QStringList &args);
+  void cmdSetLocation(const QStringList &args);
 
   // Helper methods for contacts command
   QString contactTypeToString(uint8_t type) const;

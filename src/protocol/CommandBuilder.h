@@ -37,6 +37,8 @@ public:
 
   // Node configuration
   static QByteArray buildSetAdvertName(const QString &name);
+  static QByteArray buildSendSelfAdvert(uint8_t floodMode = 0);
+  static QByteArray buildSetAdvertLatLon(int32_t latitude, int32_t longitude);
 
   // Radio configuration
   static QByteArray buildSetRadioParams(uint32_t frequencyKhz,

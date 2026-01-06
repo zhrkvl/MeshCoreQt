@@ -92,6 +92,11 @@ void CommandLineInterface::printHelp() {
   m_output << "  contacts [options] [pubkey] - List contacts or show contact details\n";
   m_output << "                             Options: --minimal, --sort=name|time|type, --type=chat|repeater|room\n";
   m_output << "                             Example: contacts --minimal --type=chat\n";
+  m_output << "  advert [flood]           - Advertise presence to nearby nodes\n";
+  m_output << "                             Example: advert (direct only) or advert flood (multi-hop)\n";
+  m_output << "  set_name <name>          - Set advertised node name\n";
+  m_output << "  set_location <lat> <lon> - Set GPS location for adverts\n";
+  m_output << "                             Example: set_location 51.5074 -0.1278\n";
   m_output << "  help                     - Show this help\n";
   m_output << "  quit                     - Exit application\n";
   m_output << "\n";
@@ -163,6 +168,12 @@ void CommandLineInterface::handleCommand(const QString &line) {
     cmdStatus();
   } else if (cmd == "contacts") {
     cmdContacts(args);
+  } else if (cmd == "advert") {
+    cmdAdvert(args);
+  } else if (cmd == "set_name") {
+    cmdSetName(args);
+  } else if (cmd == "set_location") {
+    cmdSetLocation(args);
   } else if (cmd == "help") {
     cmdHelp();
   } else if (cmd == "quit" || cmd == "exit") {
@@ -581,6 +592,99 @@ void CommandLineInterface::cmdContacts(const QStringList &args) {
     m_output << "To message:  msg <pubkey> <message>\n";
   }
 
+  m_output.flush();
+}
+
+void CommandLineInterface::cmdAdvert(const QStringList &args) {
+  if (!m_client->isInitialized()) {
+    m_output << "Error: Not initialized. Use 'init' first.\n";
+    m_output.flush();
+    return;
+  }
+
+  bool floodMode = false;
+  if (!args.isEmpty() && args[0].toLower() == "flood") {
+    floodMode = true;
+  }
+
+  m_output << "Sending advertisement"
+           << (floodMode ? " (flood mode - multi-hop)..." : " (direct only)...")
+           << "\n";
+  m_output.flush();
+
+  m_client->sendSelfAdvert(floodMode);
+
+  m_output << "Advertisement sent. Nearby nodes should discover you now.\n";
+  m_output << "Tip: Use 'contacts' to see who's discovered you.\n";
+  m_output.flush();
+}
+
+void CommandLineInterface::cmdSetName(const QStringList &args) {
+  if (args.isEmpty()) {
+    m_output << "Usage: set_name <name>\n";
+    m_output << "Example: set_name MyMeshNode\n";
+    m_output << "Note: Set your name before advertising to be recognized.\n";
+    m_output.flush();
+    return;
+  }
+
+  QString name = args.join(' ');
+
+  // Limit to 32 characters (protocol constraint)
+  if (name.length() > 32) {
+    m_output << "Warning: Name too long (max 32 chars), truncating...\n";
+    name = name.left(32);
+  }
+
+  m_output << "Setting node name: " << name << "\n";
+  m_output.flush();
+
+  m_client->setAdvertName(name);
+
+  m_output << "Name set. Use 'advert' to broadcast your presence.\n";
+  m_output.flush();
+}
+
+void CommandLineInterface::cmdSetLocation(const QStringList &args) {
+  if (args.size() < 2) {
+    m_output << "Usage: set_location <latitude> <longitude>\n";
+    m_output << "Example: set_location 51.5074 -0.1278\n";
+    m_output << "Note: Coordinates in decimal degrees\n";
+    m_output << "      Latitude: -90 to 90 (N positive, S negative)\n";
+    m_output << "      Longitude: -180 to 180 (E positive, W negative)\n";
+    m_output.flush();
+    return;
+  }
+
+  bool okLat, okLon;
+  double lat = args[0].toDouble(&okLat);
+  double lon = args[1].toDouble(&okLon);
+
+  if (!okLat || !okLon) {
+    m_output << "Error: Invalid coordinates. Must be decimal numbers.\n";
+    m_output.flush();
+    return;
+  }
+
+  // Validate ranges
+  if (lat < -90.0 || lat > 90.0) {
+    m_output << "Error: Latitude must be between -90 and 90\n";
+    m_output.flush();
+    return;
+  }
+
+  if (lon < -180.0 || lon > 180.0) {
+    m_output << "Error: Longitude must be between -180 and 180\n";
+    m_output.flush();
+    return;
+  }
+
+  m_output << "Setting location: " << lat << ", " << lon << "\n";
+  m_output.flush();
+
+  m_client->setAdvertLocation(lat, lon);
+
+  m_output << "Location set. Use 'advert' to broadcast your position.\n";
   m_output.flush();
 }
 

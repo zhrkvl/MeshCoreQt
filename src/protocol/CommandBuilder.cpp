@@ -149,6 +149,29 @@ QByteArray CommandBuilder::buildSetAdvertName(const QString &name) {
   return frame;
 }
 
+QByteArray CommandBuilder::buildSendSelfAdvert(uint8_t floodMode) {
+  QByteArray frame;
+  writeUint8(frame, static_cast<uint8_t>(CommandCode::SEND_SELF_ADVERT));
+
+  // Optional flood mode parameter
+  // 0 = zero-hop (direct only), 1 = flood mode (multi-hop)
+  if (floodMode > 0) {
+    writeUint8(frame, 1);
+  }
+
+  return frame;
+}
+
+QByteArray CommandBuilder::buildSetAdvertLatLon(int32_t latitude,
+                                                int32_t longitude) {
+  QByteArray frame;
+  writeUint8(frame, static_cast<uint8_t>(CommandCode::SET_ADVERT_LATLON));
+  writeUint32LE(frame, static_cast<uint32_t>(latitude));
+  writeUint32LE(frame, static_cast<uint32_t>(longitude));
+
+  return frame;
+}
+
 // Radio configuration
 QByteArray CommandBuilder::buildSetRadioParams(uint32_t frequencyKhz,
                                                uint32_t bandwidthHz,

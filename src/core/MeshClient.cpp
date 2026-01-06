@@ -343,6 +343,43 @@ void MeshClient::requestContactByKey(const QByteArray &publicKey) {
   m_connection->sendFrame(cmd);
 }
 
+void MeshClient::sendSelfAdvert(bool floodMode) {
+  if (!m_initialized) {
+    emit errorOccurred("Cannot send advert: not initialized");
+    return;
+  }
+
+  qDebug() << "Sending self advertisement" << (floodMode ? "(flood mode)" : "(direct)");
+  QByteArray cmd = CommandBuilder::buildSendSelfAdvert(floodMode ? 1 : 0);
+  m_connection->sendFrame(cmd);
+}
+
+void MeshClient::setAdvertName(const QString &name) {
+  if (!m_connection || !m_connection->isOpen()) {
+    emit errorOccurred("Cannot set advert name: not connected");
+    return;
+  }
+
+  qDebug() << "Setting advert name:" << name;
+  QByteArray cmd = CommandBuilder::buildSetAdvertName(name);
+  m_connection->sendFrame(cmd);
+}
+
+void MeshClient::setAdvertLocation(double latitude, double longitude) {
+  if (!m_initialized) {
+    emit errorOccurred("Cannot set location: not initialized");
+    return;
+  }
+
+  // Convert to int32 (multiply by 1E6)
+  int32_t lat = static_cast<int32_t>(latitude * 1000000.0);
+  int32_t lon = static_cast<int32_t>(longitude * 1000000.0);
+
+  qDebug() << "Setting advert location:" << latitude << "," << longitude;
+  QByteArray cmd = CommandBuilder::buildSetAdvertLatLon(lat, lon);
+  m_connection->sendFrame(cmd);
+}
+
 void MeshClient::sendChannelMessage(uint8_t channelIdx, const QString &text) {
   if (!m_initialized) {
     emit errorOccurred("Cannot send message: not initialized");
