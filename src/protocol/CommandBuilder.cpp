@@ -1,4 +1,5 @@
 #include "CommandBuilder.h"
+#include <QDateTime>
 
 namespace MeshCore {
 
@@ -147,6 +148,86 @@ QByteArray CommandBuilder::buildSetRadioTxPower(uint8_t powerDbm) {
   writeUint8(frame, powerDbm);
 
   return frame;
+}
+
+// Contact operations
+QByteArray
+CommandBuilder::buildAddUpdateContact(const QByteArray &publicKey,
+                                      const QString &name, uint8_t type,
+                                      uint8_t flags, int8_t pathLength,
+                                      const QByteArray &path, int32_t latitude,
+                                      int32_t longitude,
+                                      uint32_t lastAdvertTimestamp) {
+  QByteArray cmd;
+
+  // CMD_ADD_UPDATE_CONTACT (9)
+  writeUint8(cmd, static_cast<uint8_t>(CommandCode::ADD_UPDATE_CONTACT));
+
+  // Public key (32 bytes)
+  cmd.append(publicKey.left(PUB_KEY_SIZE));
+  if (publicKey.size() < PUB_KEY_SIZE) {
+    cmd.append(QByteArray(PUB_KEY_SIZE - publicKey.size(), 0));
+  }
+
+  // Type, flags, path length
+  writeUint8(cmd, type);
+  writeUint8(cmd, flags);
+  writeUint8(cmd, static_cast<uint8_t>(pathLength));
+
+  // Path (64 bytes)
+  cmd.append(path.left(MAX_PATH_SIZE));
+  if (path.size() < MAX_PATH_SIZE) {
+    cmd.append(QByteArray(MAX_PATH_SIZE - path.size(), 0));
+  }
+
+  // Name (32 bytes, null-terminated)
+  QByteArray nameBytes = name.toUtf8();
+  cmd.append(nameBytes.left(MAX_NAME_SIZE - 1));
+  if (nameBytes.size() < MAX_NAME_SIZE) {
+    cmd.append(QByteArray(MAX_NAME_SIZE - nameBytes.size(), 0));
+  }
+
+  // Last advert timestamp
+  writeUint32LE(cmd, lastAdvertTimestamp);
+
+  // GPS coordinates
+  writeUint32LE(cmd, static_cast<uint32_t>(latitude));
+  writeUint32LE(cmd, static_cast<uint32_t>(longitude));
+
+  // Last modified timestamp (current time)
+  writeUint32LE(cmd, static_cast<uint32_t>(QDateTime::currentSecsSinceEpoch()));
+
+  return cmd;
+}
+
+QByteArray CommandBuilder::buildRemoveContact(const QByteArray &publicKey) {
+  QByteArray cmd;
+
+  // CMD_REMOVE_CONTACT (15)
+  writeUint8(cmd, static_cast<uint8_t>(CommandCode::REMOVE_CONTACT));
+
+  // Public key (32 bytes)
+  cmd.append(publicKey.left(PUB_KEY_SIZE));
+  if (publicKey.size() < PUB_KEY_SIZE) {
+    cmd.append(QByteArray(PUB_KEY_SIZE - publicKey.size(), 0));
+  }
+
+  return cmd;
+}
+
+QByteArray CommandBuilder::buildGetContactByKey(const QByteArray &publicKey) {
+  QByteArray cmd;
+
+  // CMD_GET_CONTACT_BY_KEY (30)
+  writeUint8(cmd, static_cast<uint8_t>(CommandCode::GET_CONTACT_BY_KEY));
+
+  // Public key (32 bytes)
+  cmd.append(publicKey.left(PUB_KEY_SIZE));
+  if (publicKey.size() < PUB_KEY_SIZE) {
+    cmd.append(QByteArray(PUB_KEY_SIZE - publicKey.size(), 0));
+  }
+
+  return cmd;
 }
 
 } // namespace MeshCore

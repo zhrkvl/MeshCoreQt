@@ -171,6 +171,91 @@ QVector<Channel> MeshClient::getChannels() const {
   return m_channelManager->getChannels();
 }
 
+// Contact operations
+QVector<Contact> MeshClient::getContacts() const { return m_contacts; }
+
+void MeshClient::addOrUpdateContact(const Contact &contact) {
+  if (!m_initialized) {
+    emit errorOccurred("Cannot add contact: not initialized");
+    return;
+  }
+
+  if (!contact.isValid()) {
+    emit errorOccurred("Cannot add invalid contact");
+    return;
+  }
+
+  // Send command to device
+  QByteArray cmd = CommandBuilder::buildAddUpdateContact(
+      contact.publicKey(), contact.name(), contact.type(), contact.flags(),
+      contact.pathLength(), contact.path(), contact.latitude(),
+      contact.longitude(), contact.lastAdvertTimestamp());
+
+  qDebug() << "Adding/updating contact:" << contact.name();
+  m_serial->sendFrame(cmd);
+
+  // Update local storage
+  bool found = false;
+  for (int i = 0; i < m_contacts.size(); ++i) {
+    if (m_contacts[i].publicKey() == contact.publicKey()) {
+      m_contacts[i] = contact;
+      found = true;
+      break;
+    }
+  }
+
+  if (!found) {
+    m_contacts.append(contact);
+  }
+
+  emit contactReceived(contact);
+  emit contactsUpdated();
+}
+
+void MeshClient::removeContact(const QByteArray &publicKey) {
+  if (!m_initialized) {
+    emit errorOccurred("Cannot remove contact: not initialized");
+    return;
+  }
+
+  if (publicKey.size() != 32) {
+    emit errorOccurred("Invalid public key size (must be 32 bytes)");
+    return;
+  }
+
+  // Send command to device
+  QByteArray cmd = CommandBuilder::buildRemoveContact(publicKey);
+  qDebug() << "Removing contact:" << publicKey.toHex();
+  m_serial->sendFrame(cmd);
+
+  // Remove from local storage
+  for (int i = 0; i < m_contacts.size(); ++i) {
+    if (m_contacts[i].publicKey() == publicKey) {
+      m_contacts.removeAt(i);
+      break;
+    }
+  }
+
+  emit contactRemoved(publicKey);
+  emit contactsUpdated();
+}
+
+void MeshClient::requestContactByKey(const QByteArray &publicKey) {
+  if (!m_initialized) {
+    emit errorOccurred("Cannot request contact: not initialized");
+    return;
+  }
+
+  if (publicKey.size() != 32) {
+    emit errorOccurred("Invalid public key size (must be 32 bytes)");
+    return;
+  }
+
+  QByteArray cmd = CommandBuilder::buildGetContactByKey(publicKey);
+  qDebug() << "Requesting contact:" << publicKey.toHex();
+  m_serial->sendFrame(cmd);
+}
+
 void MeshClient::sendChannelMessage(uint8_t channelIdx, const QString &text) {
   if (!m_initialized) {
     emit errorOccurred("Cannot send message: not initialized");
@@ -271,17 +356,25 @@ void MeshClient::handleResponse(const QByteArray &frame) {
       break;
 
     case SENT_GET_CONTACTS:
-      // Skip detailed contact parsing for now
-      if (code == ResponseCode::CONTACTS_START ||
-          code == ResponseCode::CONTACT) {
-        // Just ignore contacts for now
+      if (code == ResponseCode::CONTACTS_START) {
+        qDebug() << "Contacts sync started";
+        m_contacts.clear();
+        return;
+      } else if (code == ResponseCode::CONTACT) {
+        Contact contact = ResponseParser::parseContact(frame);
+        if (contact.isValid()) {
+          m_contacts.append(contact);
+          qDebug() << "Contact received:" << contact.name();
+          emit contactReceived(contact);
+        }
         return;
       } else if (code == ResponseCode::END_OF_CONTACTS) {
-        qDebug() << "Contacts sync complete (skipped parsing)";
+        qDebug() << "Contacts sync complete - received" << m_contacts.size()
+                 << "contacts";
+        emit contactsUpdated();
         sendNextInitCommand();
         return;
       } else if (code == ResponseCode::ERR) {
-        // Device might not have contacts or returns error
         qDebug() << "Got error during contact sync, completing init anyway";
         sendNextInitCommand();
         return;
@@ -326,6 +419,31 @@ void MeshClient::handleResponse(const QByteArray &frame) {
       // Request next channel
       m_nextChannelIdx++;
       requestNextChannel();
+    }
+    break;
+  }
+
+  case ResponseCode::CONTACT: {
+    Contact contact = ResponseParser::parseContact(frame);
+    if (contact.isValid()) {
+      qDebug() << "Contact received:" << contact.name();
+
+      // Update local storage
+      bool found = false;
+      for (int i = 0; i < m_contacts.size(); ++i) {
+        if (m_contacts[i].publicKey() == contact.publicKey()) {
+          m_contacts[i] = contact;
+          found = true;
+          break;
+        }
+      }
+
+      if (!found) {
+        m_contacts.append(contact);
+      }
+
+      emit contactReceived(contact);
+      emit contactsUpdated();
     }
     break;
   }

@@ -10,6 +10,7 @@
 #include "../connection/ConnectionState.h"
 #include "../connection/SerialConnection.h"
 #include "../models/Channel.h"
+#include "../models/Contact.h"
 #include "../models/Message.h"
 
 namespace MeshCore {
@@ -34,6 +35,12 @@ public:
   void discoverChannels();
   void joinChannel(const QString &name, const QString &pskHex);
 
+  // Contact operations
+  QVector<Contact> getContacts() const;
+  void addOrUpdateContact(const Contact &contact);
+  void removeContact(const QByteArray &publicKey);
+  void requestContactByKey(const QByteArray &publicKey);
+
   // Messaging
   void sendChannelMessage(uint8_t channelIdx, const QString &text);
   void syncNextMessage();
@@ -56,6 +63,11 @@ signals:
   // Channel signals
   void channelListUpdated();
   void channelDiscovered(const Channel &channel);
+
+  // Contact signals
+  void contactReceived(const Contact &contact);
+  void contactRemoved(const QByteArray &publicKey);
+  void contactsUpdated();
 
   // Message signals
   void channelMessageReceived(const Message &message);
@@ -100,6 +112,9 @@ private:
   // Channel discovery state
   bool m_isDiscoveringChannels;
   uint8_t m_nextChannelIdx;
+
+  // Contact storage
+  QVector<Contact> m_contacts;
 };
 
 } // namespace MeshCore

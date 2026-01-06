@@ -39,6 +39,16 @@ public:
                                         uint8_t codingRate);
   static QByteArray buildSetRadioTxPower(uint8_t powerDbm);
 
+  // Contact operations
+  static QByteArray buildAddUpdateContact(const QByteArray &publicKey,
+                                          const QString &name, uint8_t type,
+                                          uint8_t flags, int8_t pathLength,
+                                          const QByteArray &path,
+                                          int32_t latitude, int32_t longitude,
+                                          uint32_t lastAdvertTimestamp);
+  static QByteArray buildRemoveContact(const QByteArray &publicKey);
+  static QByteArray buildGetContactByKey(const QByteArray &publicKey);
+
 private:
   // Helper functions for little-endian encoding
   static void writeUint32LE(QByteArray &buf, uint32_t value);

@@ -200,4 +200,47 @@ Message ResponseParser::parseContactMsgRecvV3(const QByteArray &frame) {
   return msg;
 }
 
+// Parse RESP_CODE_CONTACT
+Contact ResponseParser::parseContact(const QByteArray &frame) {
+  Contact contact;
+
+  if (frame.size() < 148) {
+    qWarning() << "Contact frame too short:" << frame.size();
+    return contact;
+  }
+
+  // Frame format (from MyMesh.cpp line 140-161):
+  // Byte 0: RESP_CODE_CONTACT (3)
+  // Bytes 1-32: Public key (32 bytes)
+  // Byte 33: type
+  // Byte 34: flags
+  // Byte 35: out_path_len
+  // Bytes 36-99: out_path (64 bytes)
+  // Bytes 100-131: name (32 bytes, null-terminated)
+  // Bytes 132-135: last_advert_timestamp (uint32 LE)
+  // Bytes 136-139: gps_lat (int32 LE)
+  // Bytes 140-143: gps_lon (int32 LE)
+  // Bytes 144-147: lastmod (uint32 LE)
+
+  QByteArray publicKey = frame.mid(1, 32);
+  uint8_t type = readUint8(frame, 33);
+  uint8_t flags = readUint8(frame, 34);
+  int8_t pathLength = static_cast<int8_t>(readUint8(frame, 35));
+  QByteArray path = frame.mid(36, 64);
+  QString name = readString(frame, 100, 32);
+  uint32_t lastAdvertTimestamp = readUint32LE(frame, 132);
+  int32_t latitude = readInt32LE(frame, 136);
+  int32_t longitude = readInt32LE(frame, 140);
+  uint32_t lastModified = readUint32LE(frame, 144);
+
+  contact = Contact(publicKey, name, type);
+  contact.setFlags(flags);
+  contact.setPath(path, pathLength);
+  contact.setLastAdvertTimestamp(lastAdvertTimestamp);
+  contact.setLocation(latitude, longitude);
+  contact.setLastModified(lastModified);
+
+  return contact;
+}
+
 } // namespace MeshCore

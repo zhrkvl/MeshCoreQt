@@ -5,6 +5,7 @@
 
 #include "../core/DeviceInfo.h"
 #include "../models/Channel.h"
+#include "../models/Contact.h"
 #include "../models/Message.h"
 #include "ProtocolConstants.h"
 
@@ -18,6 +19,7 @@ public:
   static Channel parseChannelInfo(const QByteArray &frame);
   static Message parseChannelMsgRecvV3(const QByteArray &frame);
   static Message parseContactMsgRecvV3(const QByteArray &frame);
+  static Contact parseContact(const QByteArray &frame);
 
   // Get response code from frame
   static ResponseCode getResponseCode(const QByteArray &frame);

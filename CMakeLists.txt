@@ -19,6 +19,7 @@ set(SOURCES
     src/protocol/CommandBuilder.cpp
     src/protocol/ResponseParser.cpp
     src/models/Channel.cpp
+    src/models/Contact.cpp
     src/models/Message.cpp
     src/core/ChannelManager.cpp
     src/core/MeshClient.cpp
@@ -33,6 +34,7 @@ set(HEADERS
     src/protocol/ResponseParser.h
     src/core/DeviceInfo.h
     src/models/Channel.h
+    src/models/Contact.h
     src/models/Message.h
     src/core/ChannelManager.h
     src/core/MeshClient.h
