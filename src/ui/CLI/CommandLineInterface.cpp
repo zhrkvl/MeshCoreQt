@@ -56,6 +56,13 @@ void CommandLineInterface::printWelcome() {
 
 void CommandLineInterface::printHelp() {
   m_output << "Commands:\n";
+
+#ifdef Q_OS_MACOS
+  // BLE doesn't work on macOS with Qt CLI apps due to permission plugin limitation
+  m_output << "  scan serial              - Scan for USB serial devices\n";
+  m_output << "  connect <port>           - Connect to serial device\n";
+  m_output << "                             Example: /dev/cu.usbserial-0001\n";
+#else
   m_output << "  scan [type]              - Scan for devices\n";
   m_output << "                             Types: all (default), serial, ble\n";
   m_output << "                             Examples:\n";
@@ -65,6 +72,8 @@ void CommandLineInterface::printHelp() {
   m_output << "  connect <target>         - Connect to device\n";
   m_output << "                             Serial: /dev/ttyUSB0, COM3\n";
   m_output << "                             BLE: ble:DeviceName or ble:MAC\n";
+#endif
+
   m_output << "  disconnect               - Disconnect from device\n";
   m_output << "  init                     - Run initialization sequence\n";
   m_output << "  configure <preset>       - Set radio preset (eu_uk_narrow, "
@@ -164,9 +173,11 @@ void CommandLineInterface::cmdConnect(const QStringList &args) {
     m_output << "  Linux:   connect /dev/ttyUSB0\n";
     m_output << "  macOS:   connect /dev/cu.usbserial-*\n";
     m_output << "  Windows: connect COM3\n";
+#ifndef Q_OS_MACOS
     m_output << "\nBLE examples:\n";
     m_output << "  connect ble:MyMeshDevice      (by device name)\n";
     m_output << "  connect ble:AA:BB:CC:DD:EE:FF (by MAC address)\n";
+#endif
     m_output.flush();
     return;
   }
@@ -175,6 +186,25 @@ void CommandLineInterface::cmdConnect(const QStringList &args) {
 
   // Check if BLE connection
   if (target.startsWith("ble:", Qt::CaseInsensitive)) {
+#ifdef Q_OS_MACOS
+    m_output << "\n";
+    m_output << "╔════════════════════════════════════════╗\n";
+    m_output << "║  BLE Not Available on macOS            ║\n";
+    m_output << "╚════════════════════════════════════════╝\n";
+    m_output << "\n";
+    m_output << "Bluetooth LE is not supported in Qt CLI apps on macOS\n";
+    m_output << "due to permission plugin requirements.\n";
+    m_output << "\n";
+    m_output << "Please use serial USB connections instead:\n";
+    m_output << "  scan serial     (find devices)\n";
+    m_output << "  connect <port>  (connect to device)\n";
+    m_output << "\n";
+    m_output << "For details, see: BLE_MACOS_NOTES.md\n";
+    m_output << "Tracked in issue: MeshCoreQt-wwi\n";
+    m_output << "\n";
+    m_output.flush();
+    return;
+#else
     QString deviceIdentifier = target.mid(4); // Remove "ble:" prefix
     m_output << "Connecting to BLE device: " << deviceIdentifier << "...\n";
     m_output << "Discovery may take a few seconds...\n";
@@ -188,6 +218,7 @@ void CommandLineInterface::cmdConnect(const QStringList &args) {
       m_output << "Failed to start BLE connection to " << deviceIdentifier << "\n";
       m_output.flush();
     }
+#endif
   } else {
     // Serial connection
     m_output << "Connecting to serial port: " << target << "...\n";
@@ -458,6 +489,39 @@ void CommandLineInterface::onNoMoreMessages() {
 void CommandLineInterface::printChannels() { cmdChannels(); }
 
 void CommandLineInterface::cmdScan(const QStringList &args) {
+#ifdef Q_OS_MACOS
+  // On macOS, only serial scanning works due to Qt permission plugin limitation
+  QString type = "serial";
+
+  if (!args.isEmpty()) {
+    type = args[0].toLower();
+
+    if (type == "ble" || type == "all") {
+      m_output << "\n";
+      m_output << "╔════════════════════════════════════════╗\n";
+      m_output << "║  BLE Not Available on macOS            ║\n";
+      m_output << "╚════════════════════════════════════════╝\n";
+      m_output << "\n";
+      m_output << "Bluetooth LE is not supported in Qt CLI apps on macOS\n";
+      m_output << "due to permission plugin requirements.\n";
+      m_output << "\n";
+      m_output << "Please use serial USB connections instead:\n";
+      m_output << "  scan serial\n";
+      m_output << "\n";
+      m_output << "For details, see: BLE_MACOS_NOTES.md\n";
+      m_output << "Tracked in issue: MeshCoreQt-wwi\n";
+      m_output << "\n";
+      m_output.flush();
+      return;
+    }
+
+    if (type != "serial") {
+      m_output << "Invalid scan type. Use: scan serial\n";
+      m_output.flush();
+      return;
+    }
+  }
+#else
   QString type = "all"; // default to scanning everything
 
   if (!args.isEmpty()) {
@@ -469,6 +533,7 @@ void CommandLineInterface::cmdScan(const QStringList &args) {
       return;
     }
   }
+#endif
 
   // Scan serial ports
   if (type == "serial" || type == "all") {
