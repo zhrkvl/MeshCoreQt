@@ -1,14 +1,15 @@
 # MeshCore Qt Client
 
-A C++ Qt application for MeshCore LoRa-based mesh network communication over USB serial.
+A C++ Qt application for MeshCore LoRa-based mesh network communication.
 
 ## Features
 
-- USB serial communication with MeshCore devices
+- USB serial and Bluetooth Low Energy (BLE) communication with MeshCore devices
 - Group channel messaging
 - Device initialization and configuration
 - Send and receive messages through channels
 - Command-line interface
+- Transport abstraction layer supporting multiple connection types
 
 ## Requirements
 
@@ -61,9 +62,26 @@ MeshCore Qt implements the [MeshCore Companion Radio Protocol](https://github.co
 
 ### Architecture
 
-- **Transport Layer**: SerialConnection with frame parsing state machine
+- **Transport Layer**:
+  - `IConnection` interface for transport abstraction
+  - `SerialConnection` for USB serial communication (frame parsing state machine)
+  - `BLEConnection` for Bluetooth Low Energy communication (Nordic UART Service)
 - **Protocol Layer**: CommandBuilder/ResponseParser for binary encoding
 - **Application Layer**: MeshClient orchestrator with Qt signals/slots
+
+### Connection Types
+
+#### Serial (USB)
+- Uses QSerialPort
+- Frame format: `<` (0x3c) + 2-byte LE length + data
+- Default baud rate: 115200
+
+#### Bluetooth Low Energy (BLE)
+- Uses Qt Bluetooth with Nordic UART Service (NUS)
+- Service UUID: `6E400001-B5A3-F393-E0A9-E50E24DCCA9E`
+- RX Characteristic: `6E400002-B5A3-F393-E0A9-E50E24DCCA9E` (write to device)
+- TX Characteristic: `6E400003-B5A3-F393-E0A9-E50E24DCCA9E` (notifications from device)
+- Frame format: Raw data (length implicit in BLE characteristic)
 
 ## References
 

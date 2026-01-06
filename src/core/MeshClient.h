@@ -8,7 +8,7 @@
 #include <QVector>
 
 #include "../connection/ConnectionState.h"
-#include "../connection/SerialConnection.h"
+#include "../connection/IConnection.h"
 #include "../models/Channel.h"
 #include "../models/Contact.h"
 #include "../models/Message.h"
@@ -20,12 +20,16 @@ class MeshClient : public QObject {
 
 public:
   explicit MeshClient(QObject *parent = nullptr);
+  explicit MeshClient(IConnection *connection, QObject *parent = nullptr);
   ~MeshClient();
 
   // Connection management
-  bool connectToDevice(const QString &portName, int baudRate = 115200);
+  bool connectToDevice(const QString &target);
+  bool connectToSerialDevice(const QString &portName, int baudRate = 115200);
+  bool connectToBLEDevice(const QString &deviceName);
   void disconnect();
   bool isConnected() const;
+  IConnection *connection() const { return m_connection; }
 
   // Initialization sequence
   void startInitSequence();
@@ -101,7 +105,8 @@ private:
   // Channel discovery
   void requestNextChannel();
 
-  SerialConnection *m_serial;
+  IConnection *m_connection;
+  bool m_ownsConnection;
   ChannelManager *m_channelManager;
 
   bool m_initialized;

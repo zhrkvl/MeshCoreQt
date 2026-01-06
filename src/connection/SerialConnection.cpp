@@ -4,7 +4,7 @@
 
 namespace MeshCore {
 SerialConnection::SerialConnection(QObject *parent)
-    : QObject(parent), m_serial(new QSerialPort(this)),
+    : IConnection(parent), m_serial(new QSerialPort(this)),
       m_state(ConnectionState::Disconnected), m_recvState(IDLE), m_frameLen(0) {
   connect(m_serial, &QSerialPort::readyRead, this,
           &SerialConnection::onReadyRead);
@@ -13,6 +13,10 @@ SerialConnection::SerialConnection(QObject *parent)
 }
 
 SerialConnection::~SerialConnection() { close(); }
+
+bool SerialConnection::open(const QString &target) {
+  return open(target, 115200);
+}
 
 bool SerialConnection::open(const QString &portName, int baudRate) {
   if (m_serial->isOpen()) {

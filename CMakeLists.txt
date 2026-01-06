@@ -10,12 +10,13 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 # Find Qt packages
-find_package(Qt6 REQUIRED COMPONENTS Core SerialPort)
+find_package(Qt6 REQUIRED COMPONENTS Core SerialPort Bluetooth)
 
 # Source files
 set(SOURCES
     main.cpp
     src/connection/SerialConnection.cpp
+    src/connection/BLEConnection.cpp
     src/protocol/CommandBuilder.cpp
     src/protocol/ResponseParser.cpp
     src/models/Channel.cpp
@@ -29,7 +30,9 @@ set(SOURCES
 set(HEADERS
     src/protocol/ProtocolConstants.h
     src/connection/ConnectionState.h
+    src/connection/IConnection.h
     src/connection/SerialConnection.h
+    src/connection/BLEConnection.h
     src/protocol/CommandBuilder.h
     src/protocol/ResponseParser.h
     src/core/DeviceInfo.h
@@ -47,6 +50,7 @@ target_link_libraries(${PROJECT_NAME}
     PRIVATE
         Qt6::Core
         Qt6::SerialPort
+        Qt6::Bluetooth
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)

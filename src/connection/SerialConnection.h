@@ -6,32 +6,27 @@
 
 #include "../protocol/ProtocolConstants.h"
 #include "ConnectionState.h"
+#include "IConnection.h"
 
 namespace MeshCore {
-class SerialConnection : public QObject {
+class SerialConnection : public IConnection {
   Q_OBJECT
 
 public:
   explicit SerialConnection(QObject *parent = nullptr);
 
-  ~SerialConnection();
+  ~SerialConnection() override;
 
-  bool open(const QString &portName, int baudRate = 115200);
+  // IConnection interface implementation
+  bool open(const QString &target) override;
+  void close() override;
+  bool isOpen() const override;
+  bool sendFrame(const QByteArray &data) override;
+  ConnectionState state() const override { return m_state; }
+  QString connectionType() const override { return QStringLiteral("Serial"); }
 
-  void close();
-
-  bool isOpen() const;
-
-  bool sendFrame(const QByteArray &data);
-
-  ConnectionState state() const { return m_state; }
-
-signals:
-  void frameReceived(const QByteArray &frame);
-
-  void stateChanged(ConnectionState state);
-
-  void errorOccurred(const QString &error);
+  // Serial-specific overload with baud rate
+  bool open(const QString &portName, int baudRate);
 
 private slots:
   void onReadyRead();
