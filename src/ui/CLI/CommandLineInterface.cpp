@@ -1,7 +1,10 @@
 #include "CommandLineInterface.h"
+#include "../../protocol/ProtocolConstants.h"
 #include <QBluetoothLocalDevice>
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QDebug>
+#include <algorithm>
 #include <iostream>
 
 namespace MeshCore {
@@ -86,6 +89,9 @@ void CommandLineInterface::printHelp() {
   m_output << "  msg <pubkey> <message>   - Send direct message to contact (pubkey is hex)\n";
   m_output << "  sync                     - Pull next message from queue\n";
   m_output << "  status                   - Show connection status\n";
+  m_output << "  contacts [options] [pubkey] - List contacts or show contact details\n";
+  m_output << "                             Options: --minimal, --sort=name|time|type, --type=chat|repeater|room\n";
+  m_output << "                             Example: contacts --minimal --type=chat\n";
   m_output << "  help                     - Show this help\n";
   m_output << "  quit                     - Exit application\n";
   m_output << "\n";
@@ -155,6 +161,8 @@ void CommandLineInterface::handleCommand(const QString &line) {
     cmdSync();
   } else if (cmd == "status") {
     cmdStatus();
+  } else if (cmd == "contacts") {
+    cmdContacts(args);
   } else if (cmd == "help") {
     cmdHelp();
   } else if (cmd == "quit" || cmd == "exit") {
@@ -426,6 +434,157 @@ void CommandLineInterface::cmdQuit() {
   QCoreApplication::quit();
 }
 
+void CommandLineInterface::cmdContacts(const QStringList &args) {
+  if (!m_client->isInitialized()) {
+    m_output << "Error: Not initialized. Use 'init' first.\n";
+    m_output.flush();
+    return;
+  }
+
+  // Parse command-line options
+  bool minimal = false;
+  QString sortField = "name";  // default
+  QString typeFilter;          // empty = show all
+  QString pubkeyPrefix;
+
+  for (const QString &arg : args) {
+    if (arg == "--minimal" || arg == "-m") {
+      minimal = true;
+    } else if (arg.startsWith("--sort=")) {
+      sortField = arg.mid(7).toLower();  // "name", "time", or "type"
+      if (sortField != "name" && sortField != "time" && sortField != "type") {
+        m_output << "Error: Invalid sort field '" << sortField << "'\n";
+        m_output << "Valid options: name, time, type\n";
+        m_output.flush();
+        return;
+      }
+    } else if (arg.startsWith("--type=")) {
+      typeFilter = arg.mid(7).toLower();  // "chat", "repeater", "room", "none"
+      if (typeFilter != "chat" && typeFilter != "repeater" &&
+          typeFilter != "room" && typeFilter != "none") {
+        m_output << "Error: Invalid type filter '" << typeFilter << "'\n";
+        m_output << "Valid options: chat, repeater, room, none\n";
+        m_output.flush();
+        return;
+      }
+    } else if (!arg.startsWith("-")) {
+      pubkeyPrefix = arg.toLower();  // non-option arg is pubkey prefix
+    }
+  }
+
+  QVector<Contact> contacts = m_client->getContacts();
+
+  // If pubkey prefix provided, show detailed view
+  if (!pubkeyPrefix.isEmpty()) {
+    Contact foundContact;
+    bool found = false;
+
+    for (const Contact &contact : contacts) {
+      QString fullKey = contact.publicKeyHex().toLower();
+      if (fullKey.startsWith(pubkeyPrefix)) {
+        foundContact = contact;
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      m_output << "Contact not found with public key prefix: " << pubkeyPrefix << "\n";
+      m_output << "Use 'contacts' to list all contacts.\n";
+      m_output.flush();
+      return;
+    }
+
+    printContactDetails(foundContact);
+    return;
+  }
+
+  // Filter contacts by type if specified
+  QVector<Contact> filtered;
+  for (const Contact &c : contacts) {
+    if (typeFilter.isEmpty() ||
+        (typeFilter == "chat" && c.type() == static_cast<uint8_t>(ContactType::CHAT)) ||
+        (typeFilter == "repeater" && c.type() == static_cast<uint8_t>(ContactType::REPEATER)) ||
+        (typeFilter == "room" && c.type() == static_cast<uint8_t>(ContactType::ROOM)) ||
+        (typeFilter == "none" && c.type() == static_cast<uint8_t>(ContactType::NONE))) {
+      filtered.append(c);
+    }
+  }
+
+  // Check if filtering resulted in empty list
+  if (filtered.isEmpty()) {
+    if (contacts.isEmpty()) {
+      m_output << "No contacts available.\n";
+      m_output << "Contacts are retrieved during initialization.\n";
+      m_output << "New contacts may appear when you receive messages from them.\n";
+    } else {
+      m_output << "No contacts match the filter.\n";
+      m_output << "Use 'contacts' to list all contacts.\n";
+    }
+    m_output.flush();
+    return;
+  }
+
+  // Sort contacts
+  std::sort(filtered.begin(), filtered.end(), [&sortField](const Contact &a, const Contact &b) {
+    if (sortField == "name") {
+      return a.name().toLower() < b.name().toLower();
+    } else if (sortField == "time") {
+      return a.lastModified() > b.lastModified();  // most recent first
+    } else if (sortField == "type") {
+      return a.type() < b.type();
+    }
+    return false;
+  });
+
+  // Display contacts
+  if (minimal) {
+    // Minimal view
+    m_output << "Contacts:\n";
+    for (int i = 0; i < filtered.size(); ++i) {
+      const Contact &contact = filtered[i];
+      QString pubKeyShort = contact.publicKeyHex().left(12) + "...";
+      m_output << "  [" << (i + 1) << "] " << contact.name() << " ("
+               << contactTypeToString(contact.type()) << ") - " << pubKeyShort << "\n";
+    }
+    m_output << "\n";
+    m_output << "Total: " << filtered.size() << " contact(s)\n";
+  } else {
+    // Full view
+    m_output << "Available contacts:\n";
+    m_output << "──────────────────────────────────────────────────\n";
+
+    for (int i = 0; i < filtered.size(); ++i) {
+      const Contact &contact = filtered[i];
+
+      m_output << "[" << (i + 1) << "] " << contact.name() << " ("
+               << contactTypeToString(contact.type()) << ")\n";
+
+      QString pubKeyShort = contact.publicKeyHex().left(12) + "...";
+      m_output << "    PubKey: " << pubKeyShort << " (32 bytes)\n";
+
+      m_output << "    Path:   " << formatPathLength(contact.pathLength()) << "\n";
+
+      if (contact.lastModified() > 0) {
+        QDateTime lastSeen = QDateTime::fromSecsSinceEpoch(contact.lastModified());
+        m_output << "    Last seen: " << lastSeen.toString("yyyy-MM-dd HH:mm:ss") << "\n";
+      } else {
+        m_output << "    Last seen: Never\n";
+      }
+
+      m_output << "\n";
+    }
+
+    m_output << "──────────────────────────────────────────────────\n";
+    m_output << "Total: " << filtered.size() << " contact(s)\n";
+    m_output << "\n";
+    m_output << "For details: contacts <pubkey_prefix>\n";
+    m_output << "To message:  msg <pubkey_prefix> <message>\n";
+  }
+
+  m_output.flush();
+}
+
 // Signal handlers
 void CommandLineInterface::onChannelMessageReceived(const Message &msg) {
   m_output << "\n";
@@ -680,6 +839,88 @@ void CommandLineInterface::onBLEDiscoveryFinished() {
 
   m_output.flush();
   printPrompt();
+}
+
+QString CommandLineInterface::contactTypeToString(uint8_t type) const {
+  switch (type) {
+    case static_cast<uint8_t>(ContactType::NONE):
+      return "NONE";
+    case static_cast<uint8_t>(ContactType::CHAT):
+      return "CHAT";
+    case static_cast<uint8_t>(ContactType::REPEATER):
+      return "REPEATER";
+    case static_cast<uint8_t>(ContactType::ROOM):
+      return "ROOM";
+    default:
+      return QString("UNKNOWN(%1)").arg(type);
+  }
+}
+
+QString CommandLineInterface::formatPathLength(int8_t pathLen) const {
+  if (pathLen == PATH_LEN_FLOOD) {
+    return "Flood routing";
+  } else if (pathLen == static_cast<int8_t>(PATH_LEN_DIRECT)) {
+    return "Direct connection";
+  } else if (pathLen >= 0) {
+    return QString("%1 hop%2").arg(pathLen).arg(pathLen == 1 ? "" : "s");
+  } else {
+    return QString("Unknown (%1)").arg(pathLen);
+  }
+}
+
+void CommandLineInterface::printContactDetails(const Contact &contact) {
+  m_output << "Contact Details:\n";
+  m_output << "╔════════════════════════════════════════════════════════════════\n";
+  m_output << "║ Name:        " << contact.name() << "\n";
+  m_output << "║ Type:        " << contactTypeToString(contact.type()) << "\n";
+  m_output << "║ Public Key:  " << contact.publicKeyHex() << "\n";
+  m_output << "║ Flags:       0x" << QString::number(contact.flags(), 16).rightJustified(2, '0').toUpper() << "\n";
+  m_output << "║\n";
+  m_output << "║ Routing:\n";
+  m_output << "║   Path Length:    " << formatPathLength(contact.pathLength()) << "\n";
+
+  if (!contact.path().isEmpty()) {
+    m_output << "║   Path:           " << contact.path().toHex() << "\n";
+  }
+
+  m_output << "║\n";
+  m_output << "║ Timestamps:\n";
+
+  if (contact.lastAdvertTimestamp() > 0) {
+    QDateTime lastAdvert = QDateTime::fromSecsSinceEpoch(contact.lastAdvertTimestamp());
+    m_output << "║   Last Advert:    " << contact.lastAdvertTimestamp()
+             << " (" << lastAdvert.toString("yyyy-MM-dd HH:mm:ss") << ")\n";
+  } else {
+    m_output << "║   Last Advert:    Never\n";
+  }
+
+  if (contact.lastModified() > 0) {
+    QDateTime lastMod = QDateTime::fromSecsSinceEpoch(contact.lastModified());
+    m_output << "║   Last Modified:  " << contact.lastModified()
+             << " (" << lastMod.toString("yyyy-MM-dd HH:mm:ss") << ")\n";
+  } else {
+    m_output << "║   Last Modified:  Never\n";
+  }
+
+  m_output << "║\n";
+  m_output << "║ Location:\n";
+
+  if (contact.latitude() != 0 || contact.longitude() != 0) {
+    double lat = contact.latitude() / 1000000.0;
+    double lon = contact.longitude() / 1000000.0;
+    QString latDir = (lat >= 0) ? "N" : "S";
+    QString lonDir = (lon >= 0) ? "E" : "W";
+
+    m_output << "║   Latitude:       " << QString::number(qAbs(lat), 'f', 6) << "° " << latDir << "\n";
+    m_output << "║   Longitude:      " << QString::number(qAbs(lon), 'f', 6) << "° " << lonDir << "\n";
+  } else {
+    m_output << "║   Location:       Not available\n";
+  }
+
+  m_output << "╚════════════════════════════════════════════════════════════════\n";
+  m_output << "\n";
+  m_output << "To send message: msg " << contact.publicKeyHex().left(12) << " <your message>\n";
+  m_output.flush();
 }
 
 } // namespace MeshCore

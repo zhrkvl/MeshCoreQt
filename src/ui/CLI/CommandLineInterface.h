@@ -51,6 +51,12 @@ private:
   void cmdStatus();
   void cmdHelp();
   void cmdQuit();
+  void cmdContacts(const QStringList &args);
+
+  // Helper methods for contacts command
+  QString contactTypeToString(uint8_t type) const;
+  QString formatPathLength(int8_t pathLen) const;
+  void printContactDetails(const Contact &contact);
 
   MeshClient *m_client;
   QTextStream m_input;
