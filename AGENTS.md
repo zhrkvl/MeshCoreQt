@@ -1,6 +1,8 @@
 # Agent Instructions
 
 The reference projects to look at are stored in the `references/` directory.
+The CMake is configured in `cmake-build-debug` directory. Don't create other build directories.
+
 
 This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
 
