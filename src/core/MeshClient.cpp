@@ -19,6 +19,14 @@ MeshClient::MeshClient(QObject *parent)
       m_persistenceEnabled(true) {
   // Initialize channel manager with public channel
   m_channelManager->initialize();
+
+  // Connect channel manager signals for persistence
+  connect(m_channelManager, &ChannelManager::channelAdded, this,
+          [this](const Channel &channel) {
+            if (m_persistenceEnabled && m_databaseManager && m_databaseManager->isOpen()) {
+              m_databaseManager->saveChannel(channel);
+            }
+          });
 }
 
 MeshClient::MeshClient(IConnection *connection, QObject *parent)
@@ -37,6 +45,14 @@ MeshClient::MeshClient(IConnection *connection, QObject *parent)
 
   // Initialize channel manager with public channel
   m_channelManager->initialize();
+
+  // Connect channel manager signals for persistence
+  connect(m_channelManager, &ChannelManager::channelAdded, this,
+          [this](const Channel &channel) {
+            if (m_persistenceEnabled && m_databaseManager && m_databaseManager->isOpen()) {
+              m_databaseManager->saveChannel(channel);
+            }
+          });
 }
 
 MeshClient::~MeshClient() {
@@ -519,6 +535,14 @@ void MeshClient::handleResponse(const QByteArray &frame) {
             qDebug() << "Database opened:" << m_databaseManager->getDatabasePath(m_selfInfo.publicKey);
             // Save device info
             m_databaseManager->saveDeviceInfo(m_deviceInfo, m_selfInfo);
+
+            // Save current channels to database (especially public channel)
+            QVector<Channel> currentChannels = m_channelManager->getChannels();
+            for (const Channel &ch : currentChannels) {
+              m_databaseManager->saveChannel(ch);
+              qDebug() << "Saved existing channel to DB:" << ch.index << ch.name;
+            }
+
             // Load cached contacts and channels
             QVector<Contact> cachedContacts = m_databaseManager->loadAllContacts();
             QVector<Channel> cachedChannels = m_databaseManager->loadAllChannels();
