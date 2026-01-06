@@ -616,6 +616,14 @@ void MeshClient::handleResponse(const QByteArray &frame) {
     qDebug() << "Message sent confirmation";
     break;
 
+  case ResponseCode::CONTACT_MSG_RECV_V3: {
+    Message msg = ResponseParser::parseContactMsgRecvV3(frame);
+    qDebug() << "Direct message received from"
+             << msg.senderPubKeyPrefix.toHex() << ":" << msg.text;
+    emit contactMessageReceived(msg);
+    break;
+  }
+
   default:
     qDebug() << "Unhandled response code:" << static_cast<int>(code);
     break;
@@ -638,6 +646,21 @@ void MeshClient::handlePushNotification(const QByteArray &frame) {
   case PushCode::PATH_UPDATED:
     qDebug() << "Path updated notification";
     break;
+
+  case PushCode::LOG_RX_DATA: {
+    // Raw RX data logging - useful for debugging
+    if (frame.size() >= 3) {
+      int8_t snrRaw = static_cast<int8_t>(frame[1]);
+      float snr = snrRaw / 4.0f;
+      int8_t rssi = static_cast<int8_t>(frame[2]);
+      QByteArray rawData = frame.mid(3);
+
+      qDebug() << "Raw RX data logged: SNR=" << snr
+               << "dB, RSSI=" << rssi
+               << "dBm, payload=" << rawData.toHex();
+    }
+    break;
+  }
 
   default:
     qDebug() << "Unhandled push notification:" << static_cast<int>(code);

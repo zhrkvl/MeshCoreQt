@@ -17,6 +17,8 @@ CommandLineInterface::CommandLineInterface(MeshClient *client, QObject *parent)
   // Connect MeshClient signals
   connect(m_client, &MeshClient::channelMessageReceived, this,
           &CommandLineInterface::onChannelMessageReceived);
+  connect(m_client, &MeshClient::contactMessageReceived, this,
+          &CommandLineInterface::onContactMessageReceived);
   connect(m_client, &MeshClient::initializationComplete, this,
           &CommandLineInterface::onInitComplete);
   connect(m_client, &MeshClient::connected, this,
@@ -706,6 +708,30 @@ void CommandLineInterface::onChannelMessageReceived(const Message &msg) {
   m_output << "║ " << msg.text << "\n";
   m_output
       << "╚══════════════════════════════════════════════════════════════\n";
+  m_output.flush();
+  printPrompt();
+}
+
+void CommandLineInterface::onContactMessageReceived(const Message &msg) {
+  m_output << "\n";
+  m_output
+      << "╔══════════════════════════════════════════════════════════════\n";
+  m_output << "║ Direct Message from: " << msg.senderPubKeyPrefix.toHex()
+           << "\n";
+  m_output << "║ Time: " << msg.receivedAt.toString("yyyy-MM-dd HH:mm:ss")
+           << "\n";
+  m_output << "║ Signal: SNR " << QString::number(msg.snr, 'f', 1) << " dB, ";
+  m_output << "Hops "
+           << (msg.pathLen == 0xFF ? "direct" : QString::number(msg.pathLen))
+           << "\n";
+  m_output
+      << "╠══════════════════════════════════════════════════════════════\n";
+  m_output << "║ " << msg.text << "\n";
+  m_output
+      << "╚══════════════════════════════════════════════════════════════\n";
+  m_output << "\n";
+  m_output << "To reply: msg " << msg.senderPubKeyPrefix.toHex()
+           << " <your message>\n";
   m_output.flush();
   printPrompt();
 }

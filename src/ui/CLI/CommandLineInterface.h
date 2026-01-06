@@ -20,6 +20,7 @@ public:
 private slots:
   void processInput();
   void onChannelMessageReceived(const Message &msg);
+  void onContactMessageReceived(const Message &msg);
   void onInitComplete();
   void onConnected();
   void onDisconnected();
