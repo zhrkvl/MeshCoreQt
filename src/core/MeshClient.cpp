@@ -5,6 +5,8 @@
 #include "../connection/SerialConnection.h"
 #include "../protocol/CommandBuilder.h"
 #include "../protocol/ResponseParser.h"
+#include "../storage/DatabaseManager.h"
+#include "../storage/SettingsManager.h"
 #include "MeshClient.h"
 
 namespace MeshCore {
@@ -13,7 +15,8 @@ MeshClient::MeshClient(QObject *parent)
     : QObject(parent), m_connection(nullptr), m_ownsConnection(true),
       m_channelManager(new ChannelManager(this)), m_initialized(false),
       m_initState(NOT_STARTED), m_isDiscoveringChannels(false),
-      m_nextChannelIdx(0) {
+      m_nextChannelIdx(0), m_databaseManager(new DatabaseManager(this)),
+      m_persistenceEnabled(true) {
   // Initialize channel manager with public channel
   m_channelManager->initialize();
 }
@@ -22,7 +25,8 @@ MeshClient::MeshClient(IConnection *connection, QObject *parent)
     : QObject(parent), m_connection(connection), m_ownsConnection(false),
       m_channelManager(new ChannelManager(this)), m_initialized(false),
       m_initState(NOT_STARTED), m_isDiscoveringChannels(false),
-      m_nextChannelIdx(0) {
+      m_nextChannelIdx(0), m_databaseManager(new DatabaseManager(this)),
+      m_persistenceEnabled(true) {
   // Connect connection signals
   connect(m_connection, &IConnection::frameReceived, this,
           &MeshClient::onFrameReceived);
@@ -123,6 +127,13 @@ bool MeshClient::connectToBLEDevice(const QString &deviceName) {
 
 void MeshClient::disconnect() {
   if (m_connection && m_connection->isOpen()) {
+    // Update last connected time and close database
+    if (m_persistenceEnabled && m_databaseManager && m_databaseManager->isOpen()) {
+      m_databaseManager->updateLastConnectedTime();
+      m_databaseManager->closeDatabase();
+      qDebug() << "Database closed";
+    }
+
     m_connection->close();
     m_initialized = false;
     m_initState = NOT_STARTED;
@@ -501,6 +512,24 @@ void MeshClient::handleResponse(const QByteArray &frame) {
         m_selfInfo = ResponseParser::parseSelfInfo(frame);
         qDebug() << "Self info received, public key:"
                  << m_selfInfo.publicKey.toHex();
+
+        // Open database for persistence
+        if (m_persistenceEnabled && m_databaseManager) {
+          if (m_databaseManager->openDatabase(m_selfInfo.publicKey)) {
+            qDebug() << "Database opened:" << m_databaseManager->getDatabasePath(m_selfInfo.publicKey);
+            // Save device info
+            m_databaseManager->saveDeviceInfo(m_deviceInfo, m_selfInfo);
+            // Load cached contacts and channels
+            QVector<Contact> cachedContacts = m_databaseManager->loadAllContacts();
+            QVector<Channel> cachedChannels = m_databaseManager->loadAllChannels();
+            qDebug() << "Loaded" << cachedContacts.size() << "cached contacts,"
+                     << cachedChannels.size() << "cached channels";
+            // Merge will happen after device sends contacts
+          } else {
+            qWarning() << "Failed to open database:" << m_databaseManager->getLastError();
+          }
+        }
+
         sendNextInitCommand();
         return;
       }
@@ -564,6 +593,12 @@ void MeshClient::handleResponse(const QByteArray &frame) {
     Channel channel = ResponseParser::parseChannelInfo(frame);
     qDebug() << "Channel discovered:" << channel.index << channel.name;
     m_channelManager->addOrUpdateChannel(channel);
+
+    // Save to database
+    if (m_persistenceEnabled && m_databaseManager && m_databaseManager->isOpen()) {
+      m_databaseManager->saveChannel(channel);
+    }
+
     emit channelDiscovered(channel);
 
     if (m_isDiscoveringChannels) {
@@ -593,6 +628,11 @@ void MeshClient::handleResponse(const QByteArray &frame) {
         m_contacts.append(contact);
       }
 
+      // Save to database
+      if (m_persistenceEnabled && m_databaseManager && m_databaseManager->isOpen()) {
+        m_databaseManager->saveContact(contact);
+      }
+
       emit contactReceived(contact);
       emit contactsUpdated();
     }
@@ -603,6 +643,14 @@ void MeshClient::handleResponse(const QByteArray &frame) {
     Message msg = ResponseParser::parseChannelMsgRecvV3(frame);
     qDebug() << "Channel message received from" << msg.senderName
              << "on channel" << msg.channelIdx;
+
+    // Save to database
+    if (m_persistenceEnabled && m_databaseManager && m_databaseManager->isOpen()) {
+      if (!m_databaseManager->saveMessage(msg, false)) {
+        qWarning() << "Failed to save message:" << m_databaseManager->getLastError();
+      }
+    }
+
     emit channelMessageReceived(msg);
     break;
   }
@@ -736,6 +784,31 @@ QList<BLEDeviceInfo> MeshClient::getDiscoveredBLEDevices() const {
 
 QList<SerialPortInfo> MeshClient::getAvailableSerialPorts() const {
   return m_serialPorts;
+}
+
+// Persistence methods
+
+void MeshClient::enablePersistence(bool enable) {
+  m_persistenceEnabled = enable;
+  qDebug() << "Persistence" << (enable ? "enabled" : "disabled");
+}
+
+QVector<Message> MeshClient::getMessageHistory(int limit, int offset) {
+  if (!m_persistenceEnabled || !m_databaseManager || !m_databaseManager->isOpen()) {
+    qWarning() << "Cannot get message history: persistence not enabled or database not open";
+    return QVector<Message>();
+  }
+
+  return m_databaseManager->loadMessages(limit, offset);
+}
+
+QVector<Message> MeshClient::getChannelMessageHistory(uint8_t channelIdx, int limit) {
+  if (!m_persistenceEnabled || !m_databaseManager || !m_databaseManager->isOpen()) {
+    qWarning() << "Cannot get channel message history: persistence not enabled or database not open";
+    return QVector<Message>();
+  }
+
+  return m_databaseManager->loadChannelMessages(channelIdx, limit);
 }
 
 } // namespace MeshCore

@@ -17,6 +17,8 @@
 
 namespace MeshCore {
 
+class DatabaseManager; // Forward declaration
+
 class MeshClient : public QObject {
   Q_OBJECT
 
@@ -72,6 +74,15 @@ public:
   bool isInitialized() const { return m_initialized; }
   DeviceInfo getDeviceInfo() const { return m_deviceInfo; }
   SelfInfo getSelfInfo() const { return m_selfInfo; }
+
+  // Persistence
+  void enablePersistence(bool enable);
+  bool isPersistenceEnabled() const { return m_persistenceEnabled; }
+  DatabaseManager *databaseManager() const { return m_databaseManager; }
+
+  // Message history (requires persistence)
+  QVector<Message> getMessageHistory(int limit = 100, int offset = 0);
+  QVector<Message> getChannelMessageHistory(uint8_t channelIdx, int limit = 100);
 
 signals:
   void connected();
@@ -147,6 +158,10 @@ private:
   // Device discovery results
   QList<SerialPortInfo> m_serialPorts;
   QList<BLEDeviceInfo> m_bleDevices;
+
+  // Persistence
+  DatabaseManager *m_databaseManager;
+  bool m_persistenceEnabled;
 };
 
 } // namespace MeshCore

@@ -10,7 +10,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 # Find Qt packages
-find_package(Qt6 REQUIRED COMPONENTS Core SerialPort Bluetooth)
+find_package(Qt6 REQUIRED COMPONENTS Core SerialPort Bluetooth Sql)
 
 # Source files
 set(SOURCES
@@ -25,6 +25,8 @@ set(SOURCES
     src/core/ChannelManager.cpp
     src/core/MeshClient.cpp
     src/ui/CLI/CommandLineInterface.cpp
+    src/storage/DatabaseManager.cpp
+    src/storage/SettingsManager.cpp
 )
 
 set(HEADERS
@@ -42,6 +44,8 @@ set(HEADERS
     src/core/ChannelManager.h
     src/core/MeshClient.h
     src/ui/CLI/CommandLineInterface.h
+    src/storage/DatabaseManager.h
+    src/storage/SettingsManager.h
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
@@ -51,6 +55,7 @@ target_link_libraries(${PROJECT_NAME}
         Qt6::Core
         Qt6::SerialPort
         Qt6::Bluetooth
+        Qt6::Sql
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
