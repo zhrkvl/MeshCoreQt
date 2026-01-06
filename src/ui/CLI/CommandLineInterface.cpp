@@ -51,8 +51,9 @@ void CommandLineInterface::printWelcome() {
 
 void CommandLineInterface::printHelp() {
   m_output << "Commands:\n";
-  m_output << "  connect <port>           - Connect to serial port (e.g., "
-              "/dev/ttyUSB0, COM3)\n";
+  m_output << "  connect <target>         - Connect to device\n";
+  m_output << "                             Serial: /dev/ttyUSB0, COM3\n";
+  m_output << "                             BLE: ble:DeviceName or ble:MAC\n";
   m_output << "  disconnect               - Disconnect from device\n";
   m_output << "  init                     - Run initialization sequence\n";
   m_output << "  configure <preset>       - Set radio preset (eu_uk_narrow, "
@@ -145,24 +146,46 @@ void CommandLineInterface::handleCommand(const QString &line) {
 
 void CommandLineInterface::cmdConnect(const QStringList &args) {
   if (args.isEmpty()) {
-    m_output << "Usage: connect <port>\n";
-    m_output << "Examples:\n";
+    m_output << "Usage: connect <target>\n";
+    m_output << "Serial examples:\n";
     m_output << "  Linux:   connect /dev/ttyUSB0\n";
     m_output << "  macOS:   connect /dev/cu.usbserial-*\n";
     m_output << "  Windows: connect COM3\n";
+    m_output << "\nBLE examples:\n";
+    m_output << "  connect ble:MyMeshDevice      (by device name)\n";
+    m_output << "  connect ble:AA:BB:CC:DD:EE:FF (by MAC address)\n";
     m_output.flush();
     return;
   }
 
-  QString port = args[0];
-  m_output << "Connecting to " << port << "...\n";
-  m_output.flush();
+  QString target = args[0];
 
-  if (m_client->connectToDevice(port)) {
-    // Wait for connected signal
-  } else {
-    m_output << "Failed to connect to " << port << "\n";
+  // Check if BLE connection
+  if (target.startsWith("ble:", Qt::CaseInsensitive)) {
+    QString deviceIdentifier = target.mid(4); // Remove "ble:" prefix
+    m_output << "Connecting to BLE device: " << deviceIdentifier << "...\n";
+    m_output << "Discovery may take a few seconds...\n";
     m_output.flush();
+
+    if (m_client->connectToBLEDevice(deviceIdentifier)) {
+      // Wait for connected signal
+      m_output << "BLE discovery started. Waiting for device...\n";
+      m_output.flush();
+    } else {
+      m_output << "Failed to start BLE connection to " << deviceIdentifier << "\n";
+      m_output.flush();
+    }
+  } else {
+    // Serial connection
+    m_output << "Connecting to serial port: " << target << "...\n";
+    m_output.flush();
+
+    if (m_client->connectToSerialDevice(target, 115200)) {
+      // Wait for connected signal
+    } else {
+      m_output << "Failed to connect to " << target << "\n";
+      m_output.flush();
+    }
   }
 }
 

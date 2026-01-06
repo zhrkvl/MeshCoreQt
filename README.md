@@ -37,6 +37,40 @@ cmake --build .
 ./MeshCoreQt
 ```
 
+## Usage
+
+### Connecting to a Device
+
+The application supports both USB serial and Bluetooth Low Energy connections:
+
+#### USB Serial Connection
+```bash
+./MeshCoreQt
+connect /dev/ttyUSB0        # Linux
+connect /dev/cu.usbserial-* # macOS
+connect COM3                # Windows
+```
+
+#### Bluetooth Low Energy Connection
+```bash
+./MeshCoreQt
+connect ble:MyMeshDevice        # Connect by device name
+connect ble:AA:BB:CC:DD:EE:FF   # Connect by MAC address
+```
+
+**Note:** BLE discovery may take a few seconds. The device name is the advertised BLE name of your MeshCore device.
+
+### Basic Commands
+```bash
+init                              # Initialize device
+channels                          # List available channels
+send 0 Hello World!               # Send to channel 0 (public)
+msg abc123def456 Hi there!        # Send direct message (pubkey hex)
+sync                              # Pull next message from queue
+status                            # Show connection status
+help                              # Show all commands
+```
+
 ## Protocol
 
 MeshCore Qt implements the [MeshCore Companion Radio Protocol](https://github.com/meshcore-dev/MeshCore/wiki/Companion-Radio-Protocol):
