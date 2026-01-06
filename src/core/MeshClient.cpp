@@ -1,5 +1,3 @@
-#include <QBluetoothPermission>
-#include <QCoreApplication>
 #include <QDateTime>
 #include <QDebug>
 
@@ -630,48 +628,10 @@ void MeshClient::onSerialError(const QString &error) {
 void MeshClient::scanBLEDevices(bool filterMeshCoreOnly) {
   qDebug() << "Starting BLE device scan (filter:" << filterMeshCoreOnly << ")";
 
-  // Check and request Bluetooth permission (Qt 6.5+)
-  QBluetoothPermission bluetoothPermission;
-  bluetoothPermission.setCommunicationModes(
-      QBluetoothPermission::Access); // Request discovery access
+  // Note: With Info.plist properly configured, macOS will automatically
+  // prompt for Bluetooth permission when we attempt to use Bluetooth.
+  // No need for Qt's permission API which requires GUI framework.
 
-  Qt::PermissionStatus status =
-      qApp->checkPermission(bluetoothPermission);
-
-  if (status == Qt::PermissionStatus::Undetermined) {
-    qDebug() << "Bluetooth permission undetermined, requesting...";
-    qApp->requestPermission(
-        bluetoothPermission, this,
-        [this, filterMeshCoreOnly](const QPermission &permission) {
-          if (permission.status() == Qt::PermissionStatus::Granted) {
-            qDebug() << "Bluetooth permission granted, starting scan";
-            // Permission granted, start scan
-            startBLEScanInternal(filterMeshCoreOnly);
-          } else {
-            QString error = "Bluetooth permission denied. Please grant "
-                            "Bluetooth access in System Settings.";
-            qWarning() << error;
-            emit errorOccurred(error);
-            emit bleDiscoveryFinished();
-          }
-        });
-    return; // Wait for permission callback
-  } else if (status == Qt::PermissionStatus::Denied) {
-    QString error = "Bluetooth permission denied. Please grant Bluetooth "
-                    "access in System Settings > Privacy & Security > "
-                    "Bluetooth.";
-    qWarning() << error;
-    emit errorOccurred(error);
-    emit bleDiscoveryFinished();
-    return;
-  }
-
-  // Permission already granted, proceed
-  qDebug() << "Bluetooth permission already granted";
-  startBLEScanInternal(filterMeshCoreOnly);
-}
-
-void MeshClient::startBLEScanInternal(bool filterMeshCoreOnly) {
   // Create temporary BLE connection just for discovery
   // Don't use m_connection as we might already be connected
   BLEConnection *bleConn = new BLEConnection(this);
