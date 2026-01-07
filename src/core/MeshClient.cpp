@@ -586,7 +586,11 @@ void MeshClient::handleResponse(const QByteArray &frame) {
             QVector<Channel> cachedChannels = m_databaseManager->loadAllChannels();
             qDebug() << "Loaded" << cachedContacts.size() << "cached contacts,"
                      << cachedChannels.size() << "cached channels";
-            // Merge will happen after device sends contacts
+
+            // Pre-populate contacts from database cache
+            // These will be updated/merged when device sends fresh contacts
+            m_contacts = cachedContacts;
+            qDebug() << "Initialized m_contacts with" << m_contacts.size() << "cached contacts";
           } else {
             qWarning() << "Failed to open database:" << m_databaseManager->getLastError();
           }
@@ -748,8 +752,19 @@ void MeshClient::handleResponse(const QByteArray &frame) {
 
   case ResponseCode::CONTACT_MSG_RECV_V3: {
     Message msg = ResponseParser::parseContactMsgRecvV3(frame);
-    qDebug() << "Direct message received from"
-             << msg.senderPubKeyPrefix.toHex() << ":" << msg.text;
+
+    // Try to resolve sender name from contacts
+    QString senderInfo = msg.senderPubKeyPrefix.toHex();
+    for (const Contact &contact : m_contacts) {
+      if (contact.publicKey().startsWith(msg.senderPubKeyPrefix)) {
+        if (!contact.name().isEmpty()) {
+          senderInfo = QString("%1 (%2)").arg(contact.name(), msg.senderPubKeyPrefix.toHex());
+        }
+        break;
+      }
+    }
+
+    qDebug() << "Direct message received from" << senderInfo << ":" << msg.text;
 
     // Save to database
     if (m_persistenceEnabled && m_databaseManager && m_databaseManager->isOpen()) {

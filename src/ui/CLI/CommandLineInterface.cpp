@@ -715,12 +715,30 @@ void CommandLineInterface::onChannelMessageReceived(const Message &msg) {
 void CommandLineInterface::onContactMessageReceived(const Message &msg) {
   // Try to resolve sender name from contacts
   QString senderDisplay = msg.senderPubKeyPrefix.toHex();
+  QString senderName;
   QVector<Contact> contacts = m_client->getContacts();
+
+  qDebug() << "Resolving sender" << senderDisplay << "from" << contacts.size() << "contacts";
+
   for (const Contact &contact : contacts) {
     if (contact.publicKey().startsWith(msg.senderPubKeyPrefix)) {
-      senderDisplay = QString("%1 (%2)").arg(contact.name(), msg.senderPubKeyPrefix.toHex());
+      senderName = contact.name();
+      qDebug() << "Found matching contact:" << senderName;
+
+      if (!senderName.isEmpty()) {
+        senderDisplay = QString("%1 (%2)").arg(senderName, msg.senderPubKeyPrefix.toHex());
+      } else {
+        // Contact exists but has no name, show full pubkey instead
+        senderDisplay = QString("%1 (unnamed)").arg(contact.publicKeyHex());
+      }
       break;
     }
+  }
+
+  if (senderName.isEmpty()) {
+    qDebug() << "No matching contact found for" << senderDisplay;
+    // Show as "Unknown Contact (prefix)"
+    senderDisplay = QString("Unknown Contact (%1)").arg(senderDisplay);
   }
 
   m_output << "\n";
