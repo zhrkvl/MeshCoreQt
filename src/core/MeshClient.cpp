@@ -43,6 +43,15 @@ MeshClient::MeshClient(IConnection *connection, QObject *parent)
   connect(m_connection, &IConnection::errorOccurred, this,
           &MeshClient::onSerialError);
 
+  // Auto-start initialization when connection is established
+  connect(m_connection, &IConnection::stateChanged, this,
+          [this](ConnectionState state) {
+            if (state == ConnectionState::Connected && !m_initialized) {
+              qDebug() << "Connection established, starting auto-init...";
+              startInitSequence();
+            }
+          });
+
   // Initialize channel manager with public channel
   m_channelManager->initialize();
 
@@ -208,11 +217,13 @@ void MeshClient::sendNextInitCommand() {
     break;
 
   case SENT_GET_CONTACTS:
-    // Initialization complete
-    m_initState = COMPLETE;
-    m_initialized = true;
-    qDebug() << "Initialization complete!";
-    emit initializationComplete();
+    // Wait for contacts to be received
+    // After END_OF_CONTACTS, handleResponse will start channel discovery
+    break;
+
+  case DISCOVERING_CHANNELS:
+    // Wait for channel discovery to complete
+    // Discovery is handled in requestNextChannel() loop
     break;
 
   case COMPLETE:
@@ -576,7 +587,13 @@ void MeshClient::handleResponse(const QByteArray &frame) {
         qDebug() << "Contacts sync complete - received" << m_contacts.size()
                  << "contacts";
         emit contactsUpdated();
-        sendNextInitCommand();
+
+        // Start automatic channel discovery
+        m_initState = DISCOVERING_CHANNELS;
+        qDebug() << "Starting automatic channel discovery...";
+        m_isDiscoveringChannels = true;
+        m_nextChannelIdx = 0;
+        requestNextChannel();
         return;
       } else if (code == ResponseCode::ERR) {
         qDebug() << "Got error during contact sync, completing init anyway";
@@ -605,6 +622,14 @@ void MeshClient::handleResponse(const QByteArray &frame) {
       m_isDiscoveringChannels = false;
       m_channelManager->setDiscovering(false);
       emit channelListUpdated();
+
+      // If discovery was part of init sequence, complete initialization
+      if (m_initState == DISCOVERING_CHANNELS) {
+        m_initState = COMPLETE;
+        m_initialized = true;
+        qDebug() << "Initialization complete (with channel discovery)";
+        emit initializationComplete();
+      }
     } else {
       qWarning() << "Error response:" << static_cast<int>(errCode);
       emit errorOccurred(
@@ -615,18 +640,24 @@ void MeshClient::handleResponse(const QByteArray &frame) {
 
   case ResponseCode::CHANNEL_INFO: {
     Channel channel = ResponseParser::parseChannelInfo(frame);
-    qDebug() << "Channel discovered:" << channel.index << channel.name;
-    m_channelManager->addOrUpdateChannel(channel);
 
-    // Save to database
-    if (m_persistenceEnabled && m_databaseManager && m_databaseManager->isOpen()) {
-      m_databaseManager->saveChannel(channel);
+    // Filter out empty channels
+    if (channel.isEmpty()) {
+      qDebug() << "Skipping empty channel at index" << channel.index;
+    } else {
+      qDebug() << "Channel discovered:" << channel.index << channel.name;
+      m_channelManager->addOrUpdateChannel(channel);
+
+      // Save to database
+      if (m_persistenceEnabled && m_databaseManager && m_databaseManager->isOpen()) {
+        m_databaseManager->saveChannel(channel);
+      }
+
+      emit channelDiscovered(channel);
     }
 
-    emit channelDiscovered(channel);
-
     if (m_isDiscoveringChannels) {
-      // Request next channel
+      // Continue discovery regardless of whether channel was empty
       m_nextChannelIdx++;
       requestNextChannel();
     }

@@ -16,6 +16,27 @@ Channel Channel::createPublicChannel() {
   return Channel(0, "Public", pskDecoded);
 }
 
+bool Channel::isEmpty() const {
+  // Check for blank name
+  QString trimmedName = name.trimmed();
+  if (trimmedName.isEmpty()) {
+    return true;
+  }
+
+  // Check for all-zeros secret (uninitialized)
+  bool hasNonZero = false;
+  for (int i = 0; i < secret.size(); ++i) {
+    if (secret[i] != 0x00) {
+      hasNonZero = true;
+      break;
+    }
+  }
+
+  return !hasNonZero; // Empty if all zeros
+}
+
+bool Channel::isValidChannel() const { return !isEmpty(); }
+
 bool Channel::operator==(const Channel &other) const {
   return index == other.index && name == other.name && secret == other.secret &&
          isValid == other.isValid;

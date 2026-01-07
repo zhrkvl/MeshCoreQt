@@ -20,6 +20,10 @@ public:
   // Create the default public channel (index 0)
   static Channel createPublicChannel();
 
+  // Validation
+  bool isEmpty() const;
+  bool isValidChannel() const;
+
   bool operator==(const Channel &other) const;
 };
 

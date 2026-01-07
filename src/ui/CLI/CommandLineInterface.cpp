@@ -754,7 +754,7 @@ void CommandLineInterface::onInitComplete() {
 
 void CommandLineInterface::onConnected() {
   m_output << "Connected successfully!\n";
-  m_output << "Run 'init' to initialize the device.\n";
+  m_output << "Initializing device...\n";
   m_output.flush();
 }
 
