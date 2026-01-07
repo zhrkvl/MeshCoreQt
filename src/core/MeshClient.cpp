@@ -89,6 +89,15 @@ bool MeshClient::connectToDevice(const QString &target) {
             &MeshClient::onConnectionStateChanged);
     connect(m_connection, &IConnection::errorOccurred, this,
             &MeshClient::onSerialError);
+
+    // Auto-start initialization when connection is established
+    connect(m_connection, &IConnection::stateChanged, this,
+            [this](ConnectionState state) {
+              if (state == ConnectionState::Connected && !m_initialized) {
+                qDebug() << "Connection established, starting auto-init...";
+                startInitSequence();
+              }
+            });
   }
 
   qDebug() << "Connecting to" << target << "...";
@@ -114,6 +123,15 @@ bool MeshClient::connectToSerialDevice(const QString &portName, int baudRate) {
           &MeshClient::onConnectionStateChanged);
   connect(m_connection, &IConnection::errorOccurred, this,
           &MeshClient::onSerialError);
+
+  // Auto-start initialization when connection is established
+  connect(m_connection, &IConnection::stateChanged, this,
+          [this](ConnectionState state) {
+            if (state == ConnectionState::Connected && !m_initialized) {
+              qDebug() << "Connection established, starting auto-init...";
+              startInitSequence();
+            }
+          });
 
   qDebug() << "Connecting to serial port" << portName << "at" << baudRate
            << "baud...";
@@ -145,6 +163,15 @@ bool MeshClient::connectToBLEDevice(const QString &deviceName) {
           &MeshClient::onConnectionStateChanged);
   connect(m_connection, &IConnection::errorOccurred, this,
           &MeshClient::onSerialError);
+
+  // Auto-start initialization when connection is established
+  connect(m_connection, &IConnection::stateChanged, this,
+          [this](ConnectionState state) {
+            if (state == ConnectionState::Connected && !m_initialized) {
+              qDebug() << "Connection established, starting auto-init...";
+              startInitSequence();
+            }
+          });
 
   qDebug() << "Connecting to BLE device:" << deviceName;
   return m_connection->open(deviceName);
