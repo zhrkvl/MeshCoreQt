@@ -611,6 +611,14 @@ void MeshClient::handleResponse(const QByteArray &frame) {
         if (contact.isValid()) {
           m_contacts.append(contact);
           qDebug() << "Contact received:" << contact.name();
+
+          // Save to database during init
+          if (m_persistenceEnabled && m_databaseManager && m_databaseManager->isOpen()) {
+            if (!m_databaseManager->saveContact(contact)) {
+              qWarning() << "Failed to save contact during init:" << m_databaseManager->getLastError();
+            }
+          }
+
           emit contactReceived(contact);
         }
         return;
