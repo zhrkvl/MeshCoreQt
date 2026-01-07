@@ -692,6 +692,14 @@ void MeshClient::handleResponse(const QByteArray &frame) {
     Message msg = ResponseParser::parseContactMsgRecvV3(frame);
     qDebug() << "Direct message received from"
              << msg.senderPubKeyPrefix.toHex() << ":" << msg.text;
+
+    // Save to database
+    if (m_persistenceEnabled && m_databaseManager && m_databaseManager->isOpen()) {
+      if (!m_databaseManager->saveMessage(msg, false)) {
+        qWarning() << "Failed to save direct message:" << m_databaseManager->getLastError();
+      }
+    }
+
     emit contactMessageReceived(msg);
     break;
   }

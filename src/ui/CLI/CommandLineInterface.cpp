@@ -713,11 +713,20 @@ void CommandLineInterface::onChannelMessageReceived(const Message &msg) {
 }
 
 void CommandLineInterface::onContactMessageReceived(const Message &msg) {
+  // Try to resolve sender name from contacts
+  QString senderDisplay = msg.senderPubKeyPrefix.toHex();
+  QVector<Contact> contacts = m_client->getContacts();
+  for (const Contact &contact : contacts) {
+    if (contact.publicKey().startsWith(msg.senderPubKeyPrefix)) {
+      senderDisplay = QString("%1 (%2)").arg(contact.name(), msg.senderPubKeyPrefix.toHex());
+      break;
+    }
+  }
+
   m_output << "\n";
   m_output
       << "╔══════════════════════════════════════════════════════════════\n";
-  m_output << "║ Direct Message from: " << msg.senderPubKeyPrefix.toHex()
-           << "\n";
+  m_output << "║ Direct Message from: " << senderDisplay << "\n";
   m_output << "║ Time: " << msg.receivedAt.toString("yyyy-MM-dd HH:mm:ss")
            << "\n";
   m_output << "║ Signal: SNR " << QString::number(msg.snr, 'f', 1) << " dB, ";
